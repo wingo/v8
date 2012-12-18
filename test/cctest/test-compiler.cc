@@ -315,20 +315,6 @@ TEST(C2JSFrames) {
 }
 
 
-// Regression 236. Calling InitLineEnds on a Script with undefined
-// source resulted in crash.
-TEST(Regression236) {
-  InitializeVM();
-  v8::HandleScope scope;
-
-  Handle<Script> script = FACTORY->NewScript(FACTORY->empty_string());
-  script->set_source(HEAP->undefined_value());
-  CHECK_EQ(-1, GetScriptLineNumber(script, 0));
-  CHECK_EQ(-1, GetScriptLineNumber(script, 100));
-  CHECK_EQ(-1, GetScriptLineNumber(script, -1));
-}
-
-
 TEST(GetScriptLineNumber) {
   LocalContext env;
   v8::HandleScope scope;

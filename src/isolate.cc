@@ -1021,8 +1021,7 @@ void Isolate::ComputeLocation(MessageLocation* target) {
     JavaScriptFrame* frame = it.frame();
     JSFunction* fun = JSFunction::cast(frame->function());
     Object* script = fun->shared()->script();
-    if (script->IsScript() &&
-        !(Script::cast(script)->source()->IsUndefined())) {
+    if (script->IsScript()) {
       int pos = frame->LookupCode()->SourcePosition(frame->pc());
       // Compute the location from the function and the reloc info.
       Handle<Script> casted_script(Script::cast(script));

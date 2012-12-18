@@ -396,16 +396,7 @@ void InitScriptLineEnds(Handle<Script> script) {
 
   Isolate* isolate = script->GetIsolate();
 
-  if (!script->source()->IsString()) {
-    ASSERT(script->source()->IsUndefined());
-    Handle<FixedArray> empty = isolate->factory()->NewFixedArray(0);
-    script->set_line_ends(*empty);
-    ASSERT(script->line_ends()->IsFixedArray());
-    return;
-  }
-
-  Handle<String> src(String::cast(script->source()), isolate);
-
+  Handle<String> src = script->SourceString();
   Handle<FixedArray> array = CalculateLineEnds(src, true);
 
   if (*array != isolate->heap()->empty_fixed_array()) {
@@ -520,10 +511,7 @@ int GetScriptLineNumberSafe(Handle<Script> script, int code_pos) {
     return GetScriptLineNumber(script, code_pos);
   }
   // Slow mode: we do not have line_ends. We have to iterate through source.
-  if (!script->source()->IsString()) {
-    return -1;
-  }
-  String* source = String::cast(script->source());
+  String* source = script->source();
   int line = 0;
   int len = source->length();
   for (int pos = 0; pos < len; pos++) {

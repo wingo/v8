@@ -7175,6 +7175,51 @@ uint32_t String::ComputeHashField(unibrow::CharacterStream* buffer,
 }
 
 
+uint32_t String::SubStringHash(int from, int to) {
+  ASSERT(from >= 0);
+  ASSERT(from <= to);
+  ASSERT(to <= length());
+  if (from == 0 && to == length()) return Hash();
+  String::FlatContent content = GetFlatContent();
+  if (content.IsAscii()) {
+    const char* chars = content.ToAsciiVector().start() + from;
+    return HashSequentialString(chars, to - from,
+                                GetHeap()->HashSeed());
+  } else if (content.IsTwoByte()) {
+    const uc16* chars = content.ToUC16Vector().start() + from;
+    return HashSequentialString(chars, to - from,
+                                GetHeap()->HashSeed());
+  } else {
+    StringInputBuffer buffer(this);
+    buffer.Seek(from);
+    return String::ComputeHashField(&buffer, to - from,
+                                    GetHeap()->HashSeed());
+  }
+}
+
+bool String::SubStringEquals(int from, int to, String* other) {
+  ASSERT(from >= 0);
+  ASSERT(from <= to);
+  ASSERT(to <= length());
+  if (from == 0 && to == length()) return Equals(other);
+  if (other->length() != to - from) return false;
+  String::FlatContent content = GetFlatContent();
+  if (content.IsAscii()) {
+    Vector<const char> chars(content.ToAsciiVector().start() + from, to - from);
+    return other->IsAsciiEqualTo(chars);
+  } else if (content.IsTwoByte()) {
+    Vector<const uc16> chars(content.ToUC16Vector().start() + from, to - from);
+    return other->IsTwoByteEqualTo(chars);
+  } else {
+    StringInputBuffer buffer(this);
+    buffer.Seek(from);
+    for (int i = 0; from < to; from++, i++)
+      if (buffer.GetNext() != other->Get(i))
+        return false;
+    return true;
+  }
+}
+
 MaybeObject* String::SubString(int start, int end, PretenureFlag pretenure) {
   Heap* heap = GetHeap();
   if (start == 0 && end == length()) return this;
@@ -7587,15 +7632,31 @@ String* SharedFunctionInfo::DebugName() {
 
 
 bool SharedFunctionInfo::HasSourceCode() {
-  return !script()->IsUndefined() &&
-         !reinterpret_cast<Script*>(script())->source()->IsUndefined();
+  return !script()->IsUndefined();
 }
 
 
 Handle<Object> SharedFunctionInfo::GetSourceCode() {
   if (!HasSourceCode()) return GetIsolate()->factory()->undefined_value();
-  Handle<String> source(String::cast(Script::cast(script())->source()));
+  Handle<String> source(Script::cast(script())->source());
   return SubString(source, start_position(), end_position());
+}
+
+
+bool SharedFunctionInfo::SourceEquals(String* source) {
+  if (!HasSourceCode()) return false;
+  if (source->length() != SourceSize()) return false;
+  // Must not allocate; used in the compilation cache hash table.
+  String* script_source = Script::cast(script())->source();
+  return script_source->SubStringEquals(start_position(), end_position(),
+                                        source);
+}
+
+
+uint32_t SharedFunctionInfo::SourceHash() {
+  if (!HasSourceCode()) return 0;
+  Handle<String> source(Script::cast(script())->source());
+  return source->SubStringHash(start_position(), end_position());
 }
 
 
@@ -7736,11 +7797,7 @@ void SharedFunctionInfo::SourceCodePrint(StringStream* accumulator,
     return;
   }
 
-  // Get the source for the script which this function came from.
-  // Don't use String::cast because we don't want more assertion errors while
-  // we are already creating a stack dump.
-  String* script_source =
-      reinterpret_cast<String*>(Script::cast(script())->source());
+  String* script_source = Script::cast(script())->source();
 
   if (!script_source->LooksValid()) {
     accumulator->Add("<Invalid Source>");
@@ -10696,92 +10753,150 @@ class StringKey : public HashTableKey {
 };
 
 
-// StringSharedKeys are used as keys in the eval cache.
-class StringSharedKey : public HashTableKey {
+class ScriptCompilationCacheKey : public HashTableKey {
  public:
-  StringSharedKey(String* source,
-                  SharedFunctionInfo* shared,
-                  LanguageMode language_mode,
-                  int scope_position)
+  ScriptCompilationCacheKey(String* source,
+                            Object* closure_shared_info,
+                            LanguageMode language_mode,
+                            SharedFunctionInfo *value)
       : source_(source),
-        shared_(shared),
+        closure_shared_info_(closure_shared_info),
         language_mode_(language_mode),
-        scope_position_(scope_position) { }
+        value_(value) { }
 
-  bool IsMatch(Object* other) {
-    if (!other->IsFixedArray()) return false;
-    FixedArray* other_array = FixedArray::cast(other);
-    SharedFunctionInfo* shared = SharedFunctionInfo::cast(other_array->get(0));
-    if (shared != shared_) return false;
-    int language_unchecked = Smi::cast(other_array->get(2))->value();
-    ASSERT(language_unchecked == CLASSIC_MODE ||
-           language_unchecked == STRICT_MODE ||
-           language_unchecked == EXTENDED_MODE);
-    LanguageMode language_mode = static_cast<LanguageMode>(language_unchecked);
-    if (language_mode != language_mode_) return false;
-    int scope_position = Smi::cast(other_array->get(3))->value();
-    if (scope_position != scope_position_) return false;
-    String* source = String::cast(other_array->get(1));
-    return source->Equals(source_);
+  static ScriptCompilationCacheKey FromObject(Object* obj) {
+    SharedFunctionInfo* value = SharedFunctionInfo::cast(obj);
+    Object* closure_shared_info = value->closure_shared_info();
+    LanguageMode language_mode = value->language_mode();
+
+    return ScriptCompilationCacheKey(NULL, closure_shared_info, language_mode,
+                                     value);
   }
 
-  static uint32_t StringSharedHashHelper(String* source,
-                                         SharedFunctionInfo* shared,
-                                         LanguageMode language_mode,
-                                         int scope_position) {
-    uint32_t hash = source->Hash();
-    if (shared->HasSourceCode()) {
-      // Instead of using the SharedFunctionInfo pointer in the hash
-      // code computation, we use a combination of the hash of the
-      // script source code and the start position of the calling scope.
-      // We do this to ensure that the cache entries can survive garbage
-      // collection.
-      Script* script = Script::cast(shared->script());
-      hash ^= String::cast(script->source())->Hash();
-      if (language_mode == STRICT_MODE) hash ^= 0x8000;
-      if (language_mode == EXTENDED_MODE) hash ^= 0x0080;
-      hash += scope_position;
-    }
-    return hash;
+  bool IsMatch(Object* obj) {
+    if (!obj->IsSharedFunctionInfo()) return false;
+    ScriptCompilationCacheKey other =
+        ScriptCompilationCacheKey::FromObject(obj);
+    if (closure_shared_info_ != other.closure_shared_info_) return false;
+    if (language_mode_ != other.language_mode_) return false;
+    ASSERT(source_);
+    return other.value_->SourceEquals(source_);
   }
 
   uint32_t Hash() {
-    return StringSharedHashHelper(
-        source_, shared_, language_mode_, scope_position_);
+    ASSERT(value_ || source_);
+    uint32_t hash = source_ ? source_->Hash() : value_->SourceHash();
+    if (closure_shared_info_->IsSharedFunctionInfo()) {
+      SharedFunctionInfo *context =
+          SharedFunctionInfo::cast(closure_shared_info_);
+      if (context->HasSourceCode()) {
+        // Instead of using the SharedFunctionInfo pointer in the hash code
+        // computation, we use the hash of the script source code.  We do this
+        // to ensure that the cache entries can survive garbage collection.
+        hash ^= Script::cast(context->script())->SourceHash();
+      }
+    }
+    if (language_mode_ == STRICT_MODE) hash ^= 0x8000;
+    if (language_mode_ == EXTENDED_MODE) hash ^= 0x0080;
+    return hash;
   }
 
   uint32_t HashForObject(Object* obj) {
-    FixedArray* other_array = FixedArray::cast(obj);
-    SharedFunctionInfo* shared = SharedFunctionInfo::cast(other_array->get(0));
-    String* source = String::cast(other_array->get(1));
-    int language_unchecked = Smi::cast(other_array->get(2))->value();
-    ASSERT(language_unchecked == CLASSIC_MODE ||
-           language_unchecked == STRICT_MODE ||
-           language_unchecked == EXTENDED_MODE);
-    LanguageMode language_mode = static_cast<LanguageMode>(language_unchecked);
-    int scope_position = Smi::cast(other_array->get(3))->value();
-    return StringSharedHashHelper(
-        source, shared, language_mode, scope_position);
+    ScriptCompilationCacheKey key = ScriptCompilationCacheKey::FromObject(obj);
+    return key.Hash();
   }
 
   MUST_USE_RESULT MaybeObject* AsObject() {
-    Object* obj;
-    { MaybeObject* maybe_obj = source_->GetHeap()->AllocateFixedArray(4);
-      if (!maybe_obj->ToObject(&obj)) return maybe_obj;
-    }
-    FixedArray* other_array = FixedArray::cast(obj);
-    other_array->set(0, shared_);
-    other_array->set(1, source_);
-    other_array->set(2, Smi::FromInt(language_mode_));
-    other_array->set(3, Smi::FromInt(scope_position_));
-    return other_array;
+    ASSERT(value_->IsSharedFunctionInfo());
+    return value_;
+  }
+
+  SharedFunctionInfo* value() {
+    ASSERT(value_->IsSharedFunctionInfo());
+    return value_;
   }
 
  private:
   String* source_;
-  SharedFunctionInfo* shared_;
+  Object* closure_shared_info_;
+  LanguageMode language_mode_;
+  SharedFunctionInfo* value_;
+};
+
+
+class EvalCompilationCacheKey : public HashTableKey {
+ public:
+  EvalCompilationCacheKey(String* source,
+                          Object* closure_shared_info,
+                          LanguageMode language_mode,
+                          int scope_position,
+                          SharedFunctionInfo *value)
+      : source_(source),
+        closure_shared_info_(closure_shared_info),
+        language_mode_(language_mode),
+        scope_position_(scope_position),
+        value_(value) { }
+
+  static EvalCompilationCacheKey FromObject(Object* obj) {
+    SharedFunctionInfo* value = SharedFunctionInfo::cast(obj);
+    Object* closure_shared_info = value->closure_shared_info();
+    LanguageMode language_mode = value->language_mode();
+    int scope_position = value->start_position();
+
+    return EvalCompilationCacheKey(NULL, closure_shared_info, language_mode,
+                                   scope_position, value);
+  }
+
+  bool IsMatch(Object* obj) {
+    if (!obj->IsSharedFunctionInfo()) return false;
+    EvalCompilationCacheKey other = FromObject(obj);
+    if (closure_shared_info_ != other.closure_shared_info_) return false;
+    if (language_mode_ != other.language_mode_) return false;
+    if (scope_position_ != other.scope_position_) return false;
+    ASSERT(source_);
+    return other.value_->SourceEquals(source_);
+  }
+
+  uint32_t Hash() {
+    ASSERT(value_ || source_);
+    uint32_t hash = source_ ? source_->Hash() : value_->SourceHash();
+    if (closure_shared_info_->IsSharedFunctionInfo()) {
+      SharedFunctionInfo *context =
+          SharedFunctionInfo::cast(closure_shared_info_);
+      if (context->HasSourceCode()) {
+        // Instead of using the SharedFunctionInfo pointer in the hash code
+        // computation, we use the hash of the script source code.  We do this
+        // to ensure that the cache entries can survive garbage collection.
+        hash ^= Script::cast(context->script())->SourceHash();
+      }
+    }
+    hash += scope_position_;
+    if (language_mode_ == STRICT_MODE) hash ^= 0x8000;
+    if (language_mode_ == EXTENDED_MODE) hash ^= 0x0080;
+    return hash;
+  }
+
+  uint32_t HashForObject(Object* obj) {
+    EvalCompilationCacheKey key = FromObject(obj);
+    return key.Hash();
+  }
+
+  MUST_USE_RESULT MaybeObject* AsObject() {
+    ASSERT(value_->IsSharedFunctionInfo());
+    return value_;
+  }
+
+  SharedFunctionInfo* value() {
+    ASSERT(value_->IsSharedFunctionInfo());
+    return value_;
+  }
+
+ private:
+  String* source_;
+  Object* closure_shared_info_;
   LanguageMode language_mode_;
   int scope_position_;
+  SharedFunctionInfo* value_;
 };
 
 
@@ -11972,15 +12087,14 @@ static LanguageMode CurrentGlobalLanguageMode() {
 }
 
 
-Object* CompilationCacheTable::Lookup(String* src, Context* context) {
-  SharedFunctionInfo* shared = context->closure()->shared();
-  StringSharedKey key(src,
-                      shared,
-                      CurrentGlobalLanguageMode(),
-                      RelocInfo::kNoPosition);
+Object* CompilationCacheTable::LookupScript(String* src, Context* context) {
+  ScriptCompilationCacheKey key(src, context->closure()->shared(),
+                                CurrentGlobalLanguageMode(), NULL);
   int entry = FindEntry(&key);
   if (entry == kNotFound) return GetHeap()->undefined_value();
-  return get(EntryToIndex(entry) + 1);
+  ScriptCompilationCacheKey found =
+      ScriptCompilationCacheKey::FromObject(get(EntryToIndex(entry)));
+  return found.value();
 }
 
 
@@ -11988,13 +12102,13 @@ Object* CompilationCacheTable::LookupEval(String* src,
                                           Context* context,
                                           LanguageMode language_mode,
                                           int scope_position) {
-  StringSharedKey key(src,
-                      context->closure()->shared(),
-                      language_mode,
-                      scope_position);
+  EvalCompilationCacheKey key(src, context->closure()->shared(), language_mode,
+                              scope_position, NULL);
   int entry = FindEntry(&key);
   if (entry == kNotFound) return GetHeap()->undefined_value();
-  return get(EntryToIndex(entry) + 1);
+  EvalCompilationCacheKey found =
+      EvalCompilationCacheKey::FromObject(get(EntryToIndex(entry)));
+  return found.value();
 }
 
 
@@ -12003,18 +12117,15 @@ Object* CompilationCacheTable::LookupRegExp(String* src,
   RegExpKey key(src, flags);
   int entry = FindEntry(&key);
   if (entry == kNotFound) return GetHeap()->undefined_value();
-  return get(EntryToIndex(entry) + 1);
+  return get(EntryToIndex(entry));
 }
 
 
-MaybeObject* CompilationCacheTable::Put(String* src,
-                                        Context* context,
-                                        Object* value) {
-  SharedFunctionInfo* shared = context->closure()->shared();
-  StringSharedKey key(src,
-                      shared,
-                      CurrentGlobalLanguageMode(),
-                      RelocInfo::kNoPosition);
+MaybeObject* CompilationCacheTable::PutScript(String* src,
+                                              Context* context,
+                                              SharedFunctionInfo* value) {
+  ScriptCompilationCacheKey key(src, context->closure()->shared(),
+                                CurrentGlobalLanguageMode(), value);
   CompilationCacheTable* cache;
   MaybeObject* maybe_cache = EnsureCapacity(1, &key);
   if (!maybe_cache->To(&cache)) return maybe_cache;
@@ -12025,7 +12136,6 @@ MaybeObject* CompilationCacheTable::Put(String* src,
 
   int entry = cache->FindInsertionEntry(key.Hash());
   cache->set(EntryToIndex(entry), k);
-  cache->set(EntryToIndex(entry) + 1, value);
   cache->ElementAdded();
   return cache;
 }
@@ -12035,10 +12145,8 @@ MaybeObject* CompilationCacheTable::PutEval(String* src,
                                             Context* context,
                                             SharedFunctionInfo* value,
                                             int scope_position) {
-  StringSharedKey key(src,
-                      context->closure()->shared(),
-                      value->language_mode(),
-                      scope_position);
+  EvalCompilationCacheKey key(src, context->closure()->shared(),
+                              value->language_mode(), scope_position, value);
   Object* obj;
   { MaybeObject* maybe_obj = EnsureCapacity(1, &key);
     if (!maybe_obj->ToObject(&obj)) return maybe_obj;
@@ -12054,7 +12162,6 @@ MaybeObject* CompilationCacheTable::PutEval(String* src,
   }
 
   cache->set(EntryToIndex(entry), k);
-  cache->set(EntryToIndex(entry) + 1, value);
   cache->ElementAdded();
   return cache;
 }
@@ -12072,24 +12179,41 @@ MaybeObject* CompilationCacheTable::PutRegExp(String* src,
   CompilationCacheTable* cache =
       reinterpret_cast<CompilationCacheTable*>(obj);
   int entry = cache->FindInsertionEntry(key.Hash());
-  // We store the value in the key slot, and compare the search key
-  // to the stored value with a custon IsMatch function during lookups.
   cache->set(EntryToIndex(entry), value);
-  cache->set(EntryToIndex(entry) + 1, value);
   cache->ElementAdded();
   return cache;
 }
 
 
-void CompilationCacheTable::Remove(Object* value) {
+void CompilationCacheTable::RemoveScript(SharedFunctionInfo* value) {
   Object* the_hole_value = GetHeap()->the_hole_value();
   for (int entry = 0, size = Capacity(); entry < size; entry++) {
     int entry_index = EntryToIndex(entry);
-    int value_index = entry_index + 1;
-    if (get(value_index) == value) {
-      NoWriteBarrierSet(this, entry_index, the_hole_value);
-      NoWriteBarrierSet(this, value_index, the_hole_value);
-      ElementRemoved();
+    Object* obj = get(entry_index);
+    if (IsKey(obj)) {
+      ScriptCompilationCacheKey key =
+          ScriptCompilationCacheKey::FromObject(obj);
+      if (key.value() == value) {
+        NoWriteBarrierSet(this, entry_index, the_hole_value);
+        ElementRemoved();
+      }
+    }
+  }
+  return;
+}
+
+
+void CompilationCacheTable::RemoveEval(SharedFunctionInfo* value) {
+  Object* the_hole_value = GetHeap()->the_hole_value();
+  for (int entry = 0, size = Capacity(); entry < size; entry++) {
+    int entry_index = EntryToIndex(entry);
+    Object* obj = get(entry_index);
+    if (IsKey(obj)) {
+      EvalCompilationCacheKey key = EvalCompilationCacheKey::FromObject(obj);
+      if (key.value() == value) {
+        NoWriteBarrierSet(this, entry_index, the_hole_value);
+        ElementRemoved();
+      }
     }
   }
   return;

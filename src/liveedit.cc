@@ -902,7 +902,7 @@ JSArray* LiveEdit::GatherCompileInfo(Handle<Script> script,
   Isolate* isolate = Isolate::Current();
 
   FunctionInfoListener listener;
-  Handle<Object> original_source = Handle<Object>(script->source());
+  Handle<String> original_source = Handle<String>(script->source());
   script->set_source(*source);
   isolate->set_active_function_info_listener(&listener);
   CompileScriptForTracker(isolate, script);
@@ -1334,7 +1334,7 @@ MaybeObject* LiveEdit::PatchFunctionPositions(
 
 
 static Handle<Script> CreateScriptCopy(Handle<Script> original) {
-  Handle<String> original_source(String::cast(original->source()));
+  Handle<String> original_source(original->source());
 
   Handle<Script> copy = FACTORY->NewScript(original_source);
 

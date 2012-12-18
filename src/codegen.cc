@@ -121,9 +121,9 @@ void CodeGenerator::PrintCode(Handle<Code> code, CompilationInfo* info) {
     // Print the source code if available.
     FunctionLiteral* function = info->function();
     Handle<Script> script = info->script();
-    if (!script->IsUndefined() && !script->source()->IsUndefined()) {
+    if (!script->IsUndefined()) {
       PrintF("--- Raw source ---\n");
-      StringInputBuffer stream(String::cast(script->source()));
+      StringInputBuffer stream(script->source());
       stream.Seek(function->start_position());
       // fun->end_position() points to the last character in the stream. We
       // need to compensate by adding one to calculate the length.

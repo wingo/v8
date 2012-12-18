@@ -74,8 +74,7 @@ static void CheckFunctionName(v8::Handle<v8::Script> script,
         Handle<SharedFunctionInfo>(JSFunction::cast(*obj)->shared());
   }
   Handle<Script> i_script(Script::cast(shared_function->script()));
-  CHECK(i_script->source()->IsString());
-  Handle<String> script_src(String::cast(i_script->source()));
+  Handle<String> script_src(i_script->SourceString());
 
   // Find the position of a given func source substring in the source.
   Handle<String> func_pos_str =

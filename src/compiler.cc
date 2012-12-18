@@ -461,7 +461,7 @@ static Handle<SharedFunctionInfo> MakeFunctionInfo(CompilationInfo* info) {
   ASSERT(info->is_eval() || info->is_global());
   ParsingFlags flags = kNoParsingFlags;
   if (info->pre_parse_data() != NULL ||
-      String::cast(script->source())->length() > FLAG_min_preparse_length) {
+      script->SourceLength() > FLAG_min_preparse_length) {
     flags = kAllowLazy;
   }
   if (!ParserApi::Parse(info, flags)) {
@@ -492,6 +492,7 @@ static Handle<SharedFunctionInfo> MakeFunctionInfo(CompilationInfo* info) {
           lit->materialized_literal_count(),
           info->code(),
           ScopeInfo::Create(info->scope(), info->zone()));
+  result->set_closure_shared_info(info->context()->closure()->shared());
 
   ASSERT_EQ(RelocInfo::kNoPosition, lit->function_token_position());
   Compiler::SetFunctionInfo(result, lit, true, script);

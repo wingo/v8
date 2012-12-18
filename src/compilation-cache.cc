@@ -1,4 +1,4 @@
-// Copyright 2011 the V8 project authors. All rights reserved.
+// Copyright 2011, 2012 the V8 project authors. All rights reserved.
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -117,18 +117,6 @@ void CompilationSubCache::Clear() {
 }
 
 
-void CompilationSubCache::Remove(Handle<SharedFunctionInfo> function_info) {
-  // Probe the script generation tables. Make sure not to leak handles
-  // into the caller's handle scope.
-  { HandleScope scope(isolate());
-    for (int generation = 0; generation < generations(); generation++) {
-      Handle<CompilationCacheTable> table = GetTable(generation);
-      table->Remove(*function_info);
-    }
-  }
-}
-
-
 CompilationCacheScript::CompilationCacheScript(Isolate* isolate,
                                                int generations)
     : CompilationSubCache(isolate, generations),
@@ -179,7 +167,7 @@ Handle<SharedFunctionInfo> CompilationCacheScript::Lookup(
   { HandleScope scope(isolate());
     for (generation = 0; generation < generations(); generation++) {
       Handle<CompilationCacheTable> table = GetTable(generation);
-      Handle<Object> probe(table->Lookup(*source, *context), isolate());
+      Handle<Object> probe(table->LookupScript(*source, *context), isolate());
       if (probe->IsSharedFunctionInfo()) {
         Handle<SharedFunctionInfo> function_info =
             Handle<SharedFunctionInfo>::cast(probe);
@@ -231,7 +219,7 @@ MaybeObject* CompilationCacheScript::TryTablePut(
     Handle<Context> context,
     Handle<SharedFunctionInfo> function_info) {
   Handle<CompilationCacheTable> table = GetFirstTable();
-  return table->Put(*source, *context, *function_info);
+  return table->PutScript(*source, *context, *function_info);
 }
 
 
@@ -250,6 +238,18 @@ void CompilationCacheScript::Put(Handle<String> source,
                                  Handle<SharedFunctionInfo> function_info) {
   HandleScope scope(isolate());
   SetFirstTable(TablePut(source, context, function_info));
+}
+
+
+void CompilationCacheScript::Remove(Handle<SharedFunctionInfo> function_info) {
+  // Probe the script generation tables. Make sure not to leak handles
+  // into the caller's handle scope.
+  { HandleScope scope(isolate());
+    for (int generation = 0; generation < generations(); generation++) {
+      Handle<CompilationCacheTable> table = GetTable(generation);
+      table->RemoveScript(*function_info);
+    }
+  }
 }
 
 
@@ -316,6 +316,18 @@ void CompilationCacheEval::Put(Handle<String> source,
                                int scope_position) {
   HandleScope scope(isolate());
   SetFirstTable(TablePut(source, context, function_info, scope_position));
+}
+
+
+void CompilationCacheEval::Remove(Handle<SharedFunctionInfo> function_info) {
+  // Probe the script generation tables. Make sure not to leak handles
+  // into the caller's handle scope.
+  { HandleScope scope(isolate());
+    for (int generation = 0; generation < generations(); generation++) {
+      Handle<CompilationCacheTable> table = GetTable(generation);
+      table->RemoveEval(*function_info);
+    }
+  }
 }
 
 
