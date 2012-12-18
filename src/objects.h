@@ -5240,7 +5240,7 @@ class Script: public Struct {
   };
 
   // [source]: the script source.
-  DECL_ACCESSORS(source, Object)
+  DECL_ACCESSORS(source, String)
 
   // [name]: the script name.
   DECL_ACCESSORS(name, Object)
@@ -5289,6 +5289,16 @@ class Script: public Struct {
   // If script source is an external string, check that the underlying
   // resource is accessible. Otherwise, always return true.
   inline bool HasValidSource();
+
+  // Return the size of the source string in characters, or 0 if there is no
+  // valid source string.
+  inline int SourceLength();
+
+  // Return the hash of the source string.
+  inline uint32_t SourceHash();
+
+  // Return the source string.
+  inline Handle<String> SourceString();
 
   // Dispatched behavior.
   DECLARE_PRINTER(Script)
@@ -5568,6 +5578,10 @@ class SharedFunctionInfo: public HeapObject {
   // The function's name if it is non-empty, otherwise the inferred name.
   String* DebugName();
 
+  // [closure_shared_info]: The SharedFunctionInfo of the closure in which this
+  // function was compiled, or the undefined value if none.
+  DECL_ACCESSORS(closure_shared_info, Object)
+
   // Position of the 'function' token in the script source.
   inline int function_token_position();
   inline void set_function_token_position(int function_token_position);
@@ -5733,6 +5747,8 @@ class SharedFunctionInfo: public HeapObject {
   // [source code]: Source code for the function.
   bool HasSourceCode();
   Handle<Object> GetSourceCode();
+  bool SourceEquals(String *source);
+  uint32_t SourceHash();
 
   // Number of times the function was optimized.
   inline int opt_count();
@@ -5797,8 +5813,10 @@ class SharedFunctionInfo: public HeapObject {
   static const int kScriptOffset = kFunctionDataOffset + kPointerSize;
   static const int kDebugInfoOffset = kScriptOffset + kPointerSize;
   static const int kInferredNameOffset = kDebugInfoOffset + kPointerSize;
-  static const int kInitialMapOffset =
+  static const int kClosureSharedInfoOffset =
       kInferredNameOffset + kPointerSize;
+  static const int kInitialMapOffset =
+      kClosureSharedInfoOffset + kPointerSize;
   static const int kThisPropertyAssignmentsOffset =
       kInitialMapOffset + kPointerSize;
   // ast_node_count is a Smi field. It could be grouped with another Smi field
@@ -6675,7 +6693,7 @@ class CompilationCacheShape : public BaseShape<HashTableKey*> {
   }
 
   static const int kPrefixSize = 0;
-  static const int kEntrySize = 2;
+  static const int kEntrySize = 1;
 };
 
 
@@ -6683,15 +6701,15 @@ class CompilationCacheTable: public HashTable<CompilationCacheShape,
                                               HashTableKey*> {
  public:
   // Find cached value for a string key, otherwise return null.
-  Object* Lookup(String* src, Context* context);
+  Object* LookupScript(String* src, Context* context);
   Object* LookupEval(String* src,
                      Context* context,
                      LanguageMode language_mode,
                      int scope_position);
   Object* LookupRegExp(String* source, JSRegExp::Flags flags);
-  MUST_USE_RESULT MaybeObject* Put(String* src,
-                                   Context* context,
-                                   Object* value);
+  MUST_USE_RESULT MaybeObject* PutScript(String* src,
+                                         Context* context,
+                                         SharedFunctionInfo* value);
   MUST_USE_RESULT MaybeObject* PutEval(String* src,
                                        Context* context,
                                        SharedFunctionInfo* value,
@@ -6701,7 +6719,8 @@ class CompilationCacheTable: public HashTable<CompilationCacheShape,
                                          FixedArray* value);
 
   // Remove given value from cache.
-  void Remove(Object* value);
+  void RemoveScript(SharedFunctionInfo* value);
+  void RemoveEval(SharedFunctionInfo* value);
 
   static inline CompilationCacheTable* cast(Object* obj);
 
@@ -7195,6 +7214,10 @@ class String: public HeapObject {
 
   // Returns a hash value used for the property table
   inline uint32_t Hash();
+
+  uint32_t SubStringHash(int from, int to);
+  // Compares a substring of this string to another string without allocation.
+  bool SubStringEquals(int from, int to, String* other);
 
   static bool ComputeArrayIndex(unibrow::CharacterStream* buffer,
                                 uint32_t* index,

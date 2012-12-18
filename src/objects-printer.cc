@@ -803,7 +803,7 @@ void SharedFunctionInfo::SharedFunctionInfoPrint(FILE* out) {
   code()->ShortPrint(out);
   if (HasSourceCode()) {
     PrintF(out, "\n - source code = ");
-    String* source = String::cast(Script::cast(script())->source());
+    String* source = Script::cast(script())->source();
     int start = start_position();
     int length = end_position() - start;
     SmartArrayPointer<char> source_string =

@@ -452,9 +452,7 @@ inline static bool IsValidNonBuiltinContext(Object* context) {
 
 
 inline static bool HasSourceCode(Heap* heap, SharedFunctionInfo* info) {
-  Object* undefined = heap->undefined_value();
-  return (info->script() != undefined) &&
-      (reinterpret_cast<Script*>(info->script())->source() != undefined);
+  return info->script() != heap->undefined_value();
 }
 
 

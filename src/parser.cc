@@ -568,7 +568,7 @@ Parser::Parser(CompilationInfo* info,
 FunctionLiteral* Parser::ParseProgram() {
   ZoneScope zone_scope(zone(), DONT_DELETE_ON_EXIT);
   HistogramTimerScope timer(isolate()->counters()->parse());
-  Handle<String> source(String::cast(script_->source()));
+  Handle<String> source(script_->SourceString());
   isolate()->counters()->total_parse_size()->Increment(source->length());
   int64_t start = FLAG_trace_parse ? OS::Ticks() : 0;
   fni_ = new(zone()) FuncNameInferrer(isolate(), zone());
@@ -687,7 +687,7 @@ FunctionLiteral* Parser::DoParseProgram(CompilationInfo* info,
 FunctionLiteral* Parser::ParseLazy() {
   ZoneScope zone_scope(zone(), DONT_DELETE_ON_EXIT);
   HistogramTimerScope timer(isolate()->counters()->parse_lazy());
-  Handle<String> source(String::cast(script_->source()));
+  Handle<String> source(script_->SourceString());
   isolate()->counters()->total_parse_size()->Increment(source->length());
   int64_t start = FLAG_trace_parse ? OS::Ticks() : 0;
   Handle<SharedFunctionInfo> shared_info = info()->shared_info();
@@ -1852,6 +1852,7 @@ Statement* Parser::ParseNativeDeclaration(bool* ok) {
   Handle<SharedFunctionInfo> shared =
       isolate()->factory()->NewSharedFunctionInfo(name, literals, code,
           Handle<ScopeInfo>(fun->shared()->scope_info()));
+  shared->set_closure_shared_info(fun->shared());
   shared->set_construct_stub(*construct_stub);
 
   // Copy the function data to the shared function info.

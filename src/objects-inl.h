@@ -4054,7 +4054,7 @@ ACCESSORS(SignatureInfo, args, Object, kArgsOffset)
 
 ACCESSORS(TypeSwitchInfo, types, Object, kTypesOffset)
 
-ACCESSORS(Script, source, Object, kSourceOffset)
+ACCESSORS(Script, source, String, kSourceOffset)
 ACCESSORS(Script, name, Object, kNameOffset)
 ACCESSORS(Script, id, Object, kIdOffset)
 ACCESSORS_TO_SMI(Script, line_offset, kLineOffsetOffset)
@@ -4093,6 +4093,8 @@ ACCESSORS(SharedFunctionInfo, function_data, Object, kFunctionDataOffset)
 ACCESSORS(SharedFunctionInfo, script, Object, kScriptOffset)
 ACCESSORS(SharedFunctionInfo, debug_info, Object, kDebugInfoOffset)
 ACCESSORS(SharedFunctionInfo, inferred_name, String, kInferredNameOffset)
+ACCESSORS(SharedFunctionInfo, closure_shared_info, Object,
+          kClosureSharedInfoOffset)
 ACCESSORS(SharedFunctionInfo, this_property_assignments, Object,
           kThisPropertyAssignmentsOffset)
 SMI_ACCESSORS(SharedFunctionInfo, ast_node_count, kAstNodeCountOffset)
@@ -4318,16 +4320,30 @@ ACCESSORS(CodeCache, normal_type_cache, Object, kNormalTypeCacheOffset)
 ACCESSORS(PolymorphicCodeCache, cache, Object, kCacheOffset)
 
 bool Script::HasValidSource() {
-  Object* src = this->source();
-  if (!src->IsString()) return true;
-  String* src_str = String::cast(src);
-  if (!StringShape(src_str).IsExternal()) return true;
-  if (src_str->IsOneByteRepresentation()) {
+  String* src = this->source();
+  ASSERT(src->IsString());
+  if (!StringShape(src).IsExternal()) return true;
+  if (src->IsOneByteRepresentation()) {
     return ExternalAsciiString::cast(src)->resource() != NULL;
-  } else if (src_str->IsTwoByteRepresentation()) {
+  } else if (src->IsTwoByteRepresentation()) {
     return ExternalTwoByteString::cast(src)->resource() != NULL;
   }
   return true;
+}
+
+
+int Script::SourceLength() {
+  return source()->length();
+}
+
+
+uint32_t Script::SourceHash() {
+  return source()->Hash();
+}
+
+
+Handle<String> Script::SourceString() {
+  return Handle<String>(source());
 }
 
 

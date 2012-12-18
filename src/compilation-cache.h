@@ -72,9 +72,6 @@ class CompilationSubCache {
   // Clear this sub-cache evicting all its content.
   void Clear();
 
-  // Remove given shared function info from sub-cache.
-  void Remove(Handle<SharedFunctionInfo> function_info);
-
   // Number of generations in this sub-cache.
   inline int generations() { return generations_; }
 
@@ -103,6 +100,9 @@ class CompilationCacheScript : public CompilationSubCache {
   void Put(Handle<String> source,
            Handle<Context> context,
            Handle<SharedFunctionInfo> function_info);
+
+  // Remove given shared function info from sub-cache.
+  void Remove(Handle<SharedFunctionInfo> function_info);
 
  private:
   MUST_USE_RESULT MaybeObject* TryTablePut(
@@ -155,6 +155,9 @@ class CompilationCacheEval: public CompilationSubCache {
            Handle<Context> context,
            Handle<SharedFunctionInfo> function_info,
            int scope_position);
+
+  // Remove given shared function info from sub-cache.
+  void Remove(Handle<SharedFunctionInfo> function_info);
 
  private:
   MUST_USE_RESULT MaybeObject* TryTablePut(

@@ -166,7 +166,7 @@ const AccessorDescriptor Accessors::StringLength = {
 
 MaybeObject* Accessors::ScriptGetSource(Object* object, void*) {
   Object* script = JSValue::cast(object)->value();
-  return Script::cast(script)->source();
+  return *Script::cast(script)->SourceString();
 }
 
 

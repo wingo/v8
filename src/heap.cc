@@ -3243,6 +3243,7 @@ MaybeObject* Heap::AllocateSharedFunctionInfo(Object* name) {
   share->set_script(undefined_value(), SKIP_WRITE_BARRIER);
   share->set_debug_info(undefined_value(), SKIP_WRITE_BARRIER);
   share->set_inferred_name(empty_string(), SKIP_WRITE_BARRIER);
+  share->set_closure_shared_info(undefined_value(), SKIP_WRITE_BARRIER);
   share->set_initial_map(undefined_value(), SKIP_WRITE_BARRIER);
   share->set_this_property_assignments(undefined_value(), SKIP_WRITE_BARRIER);
   share->set_ast_node_count(0);
