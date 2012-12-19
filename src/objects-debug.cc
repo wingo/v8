@@ -188,6 +188,9 @@ void HeapObject::HeapObjectVerify() {
     case SHARED_FUNCTION_INFO_TYPE:
       SharedFunctionInfo::cast(this)->SharedFunctionInfoVerify();
       break;
+    case COMPRESSED_SOURCE_TYPE:
+      CompressedSource::cast(this)->CompressedSourceVerify();
+      break;
     case JS_MESSAGE_OBJECT_TYPE:
       JSMessageObject::cast(this)->JSMessageObjectVerify();
       break;
@@ -772,7 +775,7 @@ void TypeSwitchInfo::TypeSwitchInfoVerify() {
 
 void Script::ScriptVerify() {
   CHECK(IsScript());
-  VerifyPointer(source());
+  VerifyPointer(compressed_source());
   VerifyPointer(name());
   line_offset()->SmiVerify();
   column_offset()->SmiVerify();
@@ -781,6 +784,15 @@ void Script::ScriptVerify() {
   type()->SmiVerify();
   VerifyPointer(line_ends());
   VerifyPointer(id());
+}
+
+
+void CompressedSource::CompressedSourceVerify() {
+  CHECK(IsCompressedSource());
+  CHECK(cached_string()->IsSmi() || cached_string()->IsString());
+  bytes()->ByteArrayVerify();
+  VerifySmiField(kCharLengthOffset);
+  VerifySmiField(kHashOffset);
 }
 
 

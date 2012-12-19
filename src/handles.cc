@@ -511,18 +511,7 @@ int GetScriptLineNumberSafe(Handle<Script> script, int code_pos) {
     return GetScriptLineNumber(script, code_pos);
   }
   // Slow mode: we do not have line_ends. We have to iterate through source.
-  String* source = script->source();
-  int line = 0;
-  int len = source->length();
-  for (int pos = 0; pos < len; pos++) {
-    if (pos == code_pos) {
-      break;
-    }
-    if (source->Get(pos) == '\n') {
-      line++;
-    }
-  }
-  return line;
+  return script->compressed_source()->GetLineNumberSlow(code_pos);
 }
 
 

@@ -284,6 +284,7 @@ class VerifyNativeContextSeparationVisitor: public ObjectVisitor {
           case ODDBALL_TYPE:
           case SCRIPT_TYPE:
           case SHARED_FUNCTION_INFO_TYPE:
+          case COMPRESSED_SOURCE_TYPE:
             break;
           default:
             UNREACHABLE();
@@ -1173,8 +1174,7 @@ class MarkCompactMarkingVisitor
 
   inline static bool HasSourceCode(Heap* heap, SharedFunctionInfo* info) {
     Object* undefined = heap->undefined_value();
-    return (info->script() != undefined) &&
-        (reinterpret_cast<Script*>(info->script())->source() != undefined);
+    return info->script() != undefined;
   }
 
 
@@ -1388,6 +1388,18 @@ class MarkCompactMarkingVisitor
     }
 
     VisitSharedFunctionInfoFields(heap, object, known_flush_code_candidate);
+  }
+
+
+  static void VisitCompressedSourceAndFlushCache(Map* map, HeapObject* object) {
+    CompressedSource* source = reinterpret_cast<CompressedSource*>(object);
+    source->BeforeVisitingPointers();
+
+    FixedBodyVisitor<MarkCompactMarkingVisitor,
+                     CompressedSource::BodyDescriptor,
+                     void>::Visit(map, object);
+//    VisitPointer(heap,
+    //               HeapObject::RawField(object, CompressedSource::kBytesOffset));
   }
 
 
@@ -1624,6 +1636,9 @@ void MarkCompactMarkingVisitor::Initialize() {
 
   table_.Register(kVisitSharedFunctionInfo,
                   &VisitSharedFunctionInfoAndFlushCode);
+
+  table_.Register(kVisitCompressedSource,
+                  &VisitCompressedSourceAndFlushCache);
 
   table_.Register(kVisitJSFunction,
                   &VisitJSFunctionAndFlushCode);

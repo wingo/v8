@@ -976,7 +976,6 @@ class CodeDescription BASE_EMBEDDED {
 
   bool IsLineInfoAvailable() {
     return !script_.is_null() &&
-        script_->HasValidSource() &&
         script_->name()->IsString() &&
         lineinfo_ != NULL;
   }

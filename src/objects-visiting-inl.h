@@ -68,6 +68,11 @@ void StaticNewSpaceVisitor<StaticVisitor>::Initialize() {
                   SharedFunctionInfo::BodyDescriptor,
                   int>::Visit);
 
+  table_.Register(kVisitCompressedSource,
+                  &FixedBodyVisitor<StaticVisitor,
+                  CompressedSource::BodyDescriptor,
+                  int>::Visit);
+
   table_.Register(kVisitSeqAsciiString, &VisitSeqAsciiString);
 
   table_.Register(kVisitSeqTwoByteString, &VisitSeqTwoByteString);
@@ -142,6 +147,8 @@ void StaticMarkingVisitor<StaticVisitor>::Initialize() {
   table_.Register(kVisitCode, &StaticVisitor::VisitCode);
 
   // Registration for kVisitSharedFunctionInfo is done by StaticVisitor.
+
+  // Registration for kVisitCompressedSource is done by StaticVisitor.
 
   // Registration for kVisitJSFunction is done by StaticVisitor.
 

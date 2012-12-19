@@ -371,6 +371,14 @@ Handle<AccessorInfo> Factory::NewAccessorInfo() {
 
 
 Handle<Script> Factory::NewScript(Handle<String> source) {
+  Handle<CompressedSource> compressed_source =
+    CompressedSource::Compress(source);
+
+  return NewScript(compressed_source);
+}
+
+
+Handle<Script> Factory::NewScript(Handle<CompressedSource> compressed_source) {
   // Generate id for this script.
   int id;
   Heap* heap = isolate()->heap();
@@ -390,7 +398,7 @@ Handle<Script> Factory::NewScript(Handle<String> source) {
   // Create and initialize script object.
   Handle<Foreign> wrapper = NewForeign(0, TENURED);
   Handle<Script> script = Handle<Script>::cast(NewStruct(SCRIPT_TYPE));
-  script->set_source(*source);
+  script->set_compressed_source(*compressed_source);
   script->set_name(heap->undefined_value());
   script->set_id(heap->last_script_id());
   script->set_line_offset(Smi::FromInt(0));
@@ -407,6 +415,15 @@ Handle<Script> Factory::NewScript(Handle<String> source) {
   script->set_eval_from_instructions_offset(Smi::FromInt(0));
 
   return script;
+}
+
+
+Handle<CompressedSource> Factory::NewCompressedSource(Handle<ByteArray> bytes,
+      Handle<String> source) {
+  CALL_HEAP_FUNCTION(isolate(),
+                     isolate()->heap()->AllocateCompressedSource(*bytes,
+                                                                 *source),
+                     CompressedSource);
 }
 
 

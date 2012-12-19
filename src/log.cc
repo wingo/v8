@@ -1410,9 +1410,6 @@ class EnumerateOptimizedFunctionsVisitor: public OptimizedFunctionVisitor {
 
   virtual void VisitFunction(JSFunction* function) {
     SharedFunctionInfo* sfi = SharedFunctionInfo::cast(function->shared());
-    Object* maybe_script = sfi->script();
-    if (maybe_script->IsScript()
-        && !Script::cast(maybe_script)->HasValidSource()) return;
     if (sfis_ != NULL) {
       sfis_[*count_] = Handle<SharedFunctionInfo>(sfi);
     }
@@ -1441,9 +1438,7 @@ static int EnumerateCompiledFunctions(Handle<SharedFunctionInfo>* sfis,
   for (HeapObject* obj = iterator.next(); obj != NULL; obj = iterator.next()) {
     if (!obj->IsSharedFunctionInfo()) continue;
     SharedFunctionInfo* sfi = SharedFunctionInfo::cast(obj);
-    if (sfi->is_compiled()
-        && (!sfi->script()->IsScript()
-            || Script::cast(sfi->script())->HasValidSource())) {
+    if (sfi->is_compiled() && !sfi->script()->IsScript()) {
       if (sfis != NULL) {
         sfis[compiled_funcs_count] = Handle<SharedFunctionInfo>(sfi);
       }

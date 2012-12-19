@@ -607,6 +607,7 @@ TYPE_CHECKER(Code, CODE_TYPE)
 TYPE_CHECKER(Oddball, ODDBALL_TYPE)
 TYPE_CHECKER(JSGlobalPropertyCell, JS_GLOBAL_PROPERTY_CELL_TYPE)
 TYPE_CHECKER(SharedFunctionInfo, SHARED_FUNCTION_INFO_TYPE)
+TYPE_CHECKER(CompressedSource, COMPRESSED_SOURCE_TYPE)
 TYPE_CHECKER(JSModule, JS_MODULE_TYPE)
 TYPE_CHECKER(JSValue, JS_VALUE_TYPE)
 TYPE_CHECKER(JSDate, JS_DATE_TYPE)
@@ -2245,6 +2246,7 @@ CAST_ACCESSOR(HeapNumber)
 CAST_ACCESSOR(Oddball)
 CAST_ACCESSOR(JSGlobalPropertyCell)
 CAST_ACCESSOR(SharedFunctionInfo)
+CAST_ACCESSOR(CompressedSource)
 CAST_ACCESSOR(Map)
 CAST_ACCESSOR(JSFunction)
 CAST_ACCESSOR(GlobalObject)
@@ -3769,7 +3771,7 @@ ACCESSORS(SignatureInfo, args, Object, kArgsOffset)
 
 ACCESSORS(TypeSwitchInfo, types, Object, kTypesOffset)
 
-ACCESSORS(Script, source, String, kSourceOffset)
+ACCESSORS(Script, compressed_source, CompressedSource, kCompressedSourceOffset)
 ACCESSORS(Script, name, Object, kNameOffset)
 ACCESSORS(Script, id, Object, kIdOffset)
 ACCESSORS_TO_SMI(Script, line_offset, kLineOffsetOffset)
@@ -3784,6 +3786,16 @@ ACCESSORS(Script, line_ends, Object, kLineEndsOffset)
 ACCESSORS(Script, eval_from_shared, Object, kEvalFromSharedOffset)
 ACCESSORS_TO_SMI(Script, eval_from_instructions_offset,
                  kEvalFrominstructionsOffsetOffset)
+
+ACCESSORS(CompressedSource, bytes, ByteArray, kBytesOffset)
+ACCESSORS(CompressedSource, cached_string, Object, kCachedStringOffset)
+SMI_ACCESSORS(CompressedSource, char_length, kCharLengthOffset)
+SMI_ACCESSORS(CompressedSource, hash, kHashOffset)
+
+void CompressedSource::BeforeVisitingPointers() {
+  // Flush source cache on major GC.
+  set_cached_string(Smi::FromInt(0));
+}
 
 #ifdef ENABLE_DEBUGGER_SUPPORT
 ACCESSORS(DebugInfo, shared, SharedFunctionInfo, kSharedFunctionInfoIndex)
@@ -4034,31 +4046,18 @@ ACCESSORS(CodeCache, normal_type_cache, Object, kNormalTypeCacheOffset)
 
 ACCESSORS(PolymorphicCodeCache, cache, Object, kCacheOffset)
 
-bool Script::HasValidSource() {
-  String* src = this->source();
-  ASSERT(src->IsString());
-  if (!StringShape(src).IsExternal()) return true;
-  if (src->IsAsciiRepresentation()) {
-    return ExternalAsciiString::cast(src)->resource() != NULL;
-  } else if (src->IsTwoByteRepresentation()) {
-    return ExternalTwoByteString::cast(src)->resource() != NULL;
-  }
-  return true;
-}
-
-
 int Script::SourceLength() {
-  return source()->length();
+  return compressed_source()->char_length();
 }
 
 
 uint32_t Script::SourceHash() {
-  return source()->Hash();
+  return compressed_source()->hash();
 }
 
 
 Handle<String> Script::SourceString() {
-  return Handle<String>(source());
+  return compressed_source()->Decompress();
 }
 
 

@@ -131,6 +131,7 @@ class Utf16 {
   }
   static const int kNoPreviousCharacter = -1;
   static const uchar kMaxNonSurrogateCharCode = 0xffff;
+  static const uchar kMaxCharCode = 0x10ffff;
   // Encoding a single UTF-16 code unit will produce 1, 2 or 3 bytes
   // of UTF-8 data.  The special case where the unit is a surrogate
   // trail produces 1 byte net, because the encoding of the pair is

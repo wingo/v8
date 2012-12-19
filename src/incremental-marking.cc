@@ -170,6 +170,8 @@ class IncrementalMarkingMarkingVisitor
 
     table_.Register(kVisitSharedFunctionInfo, &VisitSharedFunctionInfo);
 
+    table_.Register(kVisitCompressedSource, &VisitCompressedSource);
+
     table_.Register(kVisitJSFunction, &VisitJSFunction);
 
     table_.Register(kVisitJSRegExp, &VisitJSRegExp);
@@ -190,6 +192,12 @@ class IncrementalMarkingMarkingVisitor
     }
     FixedBodyVisitor<IncrementalMarkingMarkingVisitor,
                      SharedFunctionInfo::BodyDescriptor,
+                     void>::Visit(map, object);
+  }
+
+  static void VisitCompressedSource(Map* map, HeapObject* object) {
+    FixedBodyVisitor<IncrementalMarkingMarkingVisitor,
+                     CompressedSource::BodyDescriptor,
                      void>::Visit(map, object);
   }
 

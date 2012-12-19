@@ -2457,6 +2457,12 @@ bool Heap::CreateInitialMaps() {
   }
   set_shared_function_info_map(Map::cast(obj));
 
+  { MaybeObject* maybe_obj = AllocateMap(COMPRESSED_SOURCE_TYPE,
+                                         CompressedSource::kSize);
+    if (!maybe_obj->ToObject(&obj)) return false;
+  }
+  set_compressed_source_map(Map::cast(obj));
+
   { MaybeObject* maybe_obj = AllocateMap(JS_MESSAGE_OBJECT_TYPE,
                                          JSMessageObject::kSize);
     if (!maybe_obj->ToObject(&obj)) return false;
@@ -3139,6 +3145,20 @@ MaybeObject* Heap::AllocateSharedFunctionInfo(Object* name) {
   share->set_opt_count(0);
 
   return share;
+}
+
+
+MaybeObject* Heap::AllocateCompressedSource(ByteArray* bytes, String *source) {
+  CompressedSource* compressed_source;
+  MaybeObject* maybe = Allocate(compressed_source_map(), OLD_POINTER_SPACE);
+  if (!maybe->To<CompressedSource>(&compressed_source)) return maybe;
+
+  compressed_source->set_bytes(bytes, SKIP_WRITE_BARRIER);
+  compressed_source->set_cached_string(source);
+  compressed_source->set_char_length(source->length());
+  compressed_source->set_hash(source->Hash());
+
+  return compressed_source;
 }
 
 

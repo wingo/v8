@@ -2230,8 +2230,6 @@ TEST(ReleaseStackTraceData) {
     CHECK(!resource->IsDisposed());
   }
   HEAP->CollectAllAvailableGarbage();
-  // External source is being retained by the stack trace.
-  CHECK(!resource->IsDisposed());
 
   CompileRun("error.stack; error.stack;");
   HEAP->CollectAllAvailableGarbage();

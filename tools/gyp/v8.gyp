@@ -261,6 +261,7 @@
             '../../src/compilation-cache.h',
             '../../src/compiler.cc',
             '../../src/compiler.h',
+            '../../src/compressed-source.cc',
             '../../src/contexts.cc',
             '../../src/contexts.h',
             '../../src/conversions-inl.h',

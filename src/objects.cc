@@ -1262,6 +1262,9 @@ void HeapObject::HeapObjectShortPrint(StringStream* accumulator) {
     case SHARED_FUNCTION_INFO_TYPE:
       accumulator->Add("<SharedFunctionInfo>");
       break;
+    case COMPRESSED_SOURCE_TYPE:
+      accumulator->Add("<CompressedSource>");
+      break;
     case JS_MESSAGE_OBJECT_TYPE:
       accumulator->Add("<JSMessageObject>");
       break;
@@ -1413,10 +1416,12 @@ void HeapObject::IterateBody(InstanceType type, int object_size,
     case EXTERNAL_FLOAT_ARRAY_TYPE:
     case EXTERNAL_DOUBLE_ARRAY_TYPE:
       break;
-    case SHARED_FUNCTION_INFO_TYPE: {
+    case SHARED_FUNCTION_INFO_TYPE:
       SharedFunctionInfo::BodyDescriptor::IterateBody(this, v);
       break;
-    }
+    case COMPRESSED_SOURCE_TYPE:
+      CompressedSource::BodyDescriptor::IterateBody(this, v);
+      break;
 
 #define MAKE_STRUCT_CASE(NAME, Name, name) \
         case NAME##_TYPE:
@@ -7638,8 +7643,8 @@ bool SharedFunctionInfo::HasSourceCode() {
 
 Handle<Object> SharedFunctionInfo::GetSourceCode() {
   if (!HasSourceCode()) return GetIsolate()->factory()->undefined_value();
-  Handle<String> source(Script::cast(script())->source());
-  return SubString(source, start_position(), end_position());
+  return Script::cast(script())->compressed_source()->Decompress(
+      start_position(), end_position() - start_position());
 }
 
 
@@ -7647,16 +7652,15 @@ bool SharedFunctionInfo::SourceEquals(String* source) {
   if (!HasSourceCode()) return false;
   if (source->length() != SourceSize()) return false;
   // Must not allocate; used in the compilation cache hash table.
-  String* script_source = Script::cast(script())->source();
-  return script_source->SubStringEquals(start_position(), end_position(),
-                                        source);
+  CompressedSource* s = Script::cast(script())->compressed_source();
+  return s->SubStringEquals(start_position(), source);
 }
 
 
 uint32_t SharedFunctionInfo::SourceHash() {
   if (!HasSourceCode()) return 0;
-  Handle<String> source(Script::cast(script())->source());
-  return source->SubStringHash(start_position(), end_position());
+  CompressedSource* s = Script::cast(script())->compressed_source();
+  return s->SubStringHash(start_position(), end_position() - start_position());
 }
 
 
@@ -7797,9 +7801,11 @@ void SharedFunctionInfo::SourceCodePrint(StringStream* accumulator,
     return;
   }
 
-  String* script_source = Script::cast(script())->source();
+  // Get the source for the script which this function came from.
+  CompressedSource* compressed_source =
+      Script::cast(script())->compressed_source();
 
-  if (!script_source->LooksValid()) {
+  if (!compressed_source->char_length()) {
     accumulator->Add("<Invalid Source>");
     return;
   }
@@ -7812,13 +7818,12 @@ void SharedFunctionInfo::SourceCodePrint(StringStream* accumulator,
     }
   }
 
+  Collector<uint8_t> data;
   int len = end_position() - start_position();
   if (len <= max_length || max_length < 0) {
-    accumulator->Put(script_source, start_position(), end_position());
+    compressed_source->Decompress(start_position(), len, accumulator);
   } else {
-    accumulator->Put(script_source,
-                     start_position(),
-                     start_position() + max_length);
+    compressed_source->Decompress(start_position(), max_length, accumulator);
     accumulator->Add("...\n");
   }
 }

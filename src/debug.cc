@@ -2453,7 +2453,7 @@ void Debug::CreateScriptCache() {
   AssertNoAllocation no_allocation;
 
   for (HeapObject* obj = iterator.next(); obj != NULL; obj = iterator.next()) {
-    if (obj->IsScript() && Script::cast(obj)->HasValidSource()) {
+    if (obj->IsScript() && Script::cast(obj)->SourceLength()) {
       script_cache_->Add(Handle<Script>(Script::cast(obj)));
       count++;
     }

@@ -89,6 +89,7 @@ class StaticVisitorBase : public AllStatic {
   V(Map)                      \
   V(PropertyCell)             \
   V(SharedFunctionInfo)       \
+  V(CompressedSource)         \
   V(JSFunction)               \
   V(JSWeakMap)                \
   V(JSRegExp)

@@ -902,12 +902,15 @@ JSArray* LiveEdit::GatherCompileInfo(Handle<Script> script,
   Isolate* isolate = Isolate::Current();
 
   FunctionInfoListener listener;
-  Handle<String> original_source = Handle<String>(script->source());
-  script->set_source(*source);
+  Handle<CompressedSource> original_compressed_source(
+      script->compressed_source());
+  Handle<CompressedSource> new_compressed_source =
+      CompressedSource::Compress(source);
+  script->set_compressed_source(*new_compressed_source);
   isolate->set_active_function_info_listener(&listener);
   CompileScriptForTracker(isolate, script);
   isolate->set_active_function_info_listener(NULL);
-  script->set_source(*original_source);
+  script->set_compressed_source(*original_compressed_source);
 
   return *(listener.GetResult());
 }
@@ -1334,9 +1337,11 @@ MaybeObject* LiveEdit::PatchFunctionPositions(
 
 
 static Handle<Script> CreateScriptCopy(Handle<Script> original) {
-  Handle<String> original_source(original->source());
+  Handle<CompressedSource> original_compressed_source(
+      original->compressed_source());
 
-  Handle<Script> copy = FACTORY->NewScript(original_source);
+  Handle<Script> copy =
+      FACTORY->NewScript(original_compressed_source);
 
   copy->set_name(original->name());
   copy->set_line_offset(original->line_offset());
@@ -1367,7 +1372,9 @@ Object* LiveEdit::ChangeScriptSource(Handle<Script> original_script,
     old_script_object = Handle<Object>(HEAP->null_value());
   }
 
-  original_script->set_source(*new_source);
+  Handle<CompressedSource> new_compressed_source =
+      CompressedSource::Compress(new_source);
+  original_script->set_compressed_source(*new_compressed_source);
 
   // Drop line ends so that they will be recalculated.
   original_script->set_line_ends(HEAP->undefined_value());
