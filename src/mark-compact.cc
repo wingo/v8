@@ -286,6 +286,7 @@ class VerifyNativeContextSeparationVisitor: public ObjectVisitor {
           case ODDBALL_TYPE:
           case SCRIPT_TYPE:
           case SHARED_FUNCTION_INFO_TYPE:
+          case COMPRESSED_SOURCE_TYPE:
             break;
           default:
             UNREACHABLE();
@@ -1158,6 +1159,11 @@ class MarkCompactMarkingVisitor
   INLINE(static void BeforeVisitingSharedFunctionInfo(HeapObject* object)) {
     SharedFunctionInfo* shared = SharedFunctionInfo::cast(object);
     shared->BeforeVisitingPointers();
+  }
+
+  INLINE(static void BeforeVisitingCompressedSource(HeapObject* object)) {
+    CompressedSource* source = CompressedSource::cast(object);
+    source->BeforeVisitingPointers();
   }
 
   static void VisitJSWeakMap(Map* map, HeapObject* object) {

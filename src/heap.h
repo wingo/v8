@@ -135,6 +135,7 @@ namespace internal {
   V(Map, oddball_map, OddballMap)                                              \
   V(Map, message_object_map, JSMessageObjectMap)                               \
   V(Map, foreign_map, ForeignMap)                                              \
+  V(Map, compressed_source_map, CompressedSourceMap)                           \
   V(HeapNumber, nan_value, NanValue)                                           \
   V(HeapNumber, infinity_value, InfinityValue)                                 \
   V(HeapNumber, minus_zero_value, MinusZeroValue)                              \
@@ -988,6 +989,13 @@ class Heap {
   // failed.
   // Please note this does not perform a garbage collection.
   MUST_USE_RESULT MaybeObject* AllocateSharedFunctionInfo(Object* name);
+
+  // Allocates a new CompressedSource object.
+  // Returns Failure::RetryAfterGC(requested_bytes, space) if the allocation
+  // failed.
+  // Please note this does not perform a garbage collection.
+  MUST_USE_RESULT MaybeObject* AllocateCompressedSource(ByteArray *bytes,
+                                                        String *source);
 
   // Allocates a new JSMessageObject object.
   // Returns Failure::RetryAfterGC(requested_bytes, space) if the allocation

@@ -89,6 +89,7 @@ class StaticVisitorBase : public AllStatic {
   V(Map)                      \
   V(PropertyCell)             \
   V(SharedFunctionInfo)       \
+  V(CompressedSource)         \
   V(JSFunction)               \
   V(JSWeakMap)                \
   V(JSRegExp)
@@ -404,6 +405,7 @@ class StaticMarkingVisitor : public StaticVisitorBase {
   static inline void VisitMap(Map* map, HeapObject* object);
   static inline void VisitCode(Map* map, HeapObject* object);
   static inline void VisitSharedFunctionInfo(Map* map, HeapObject* object);
+  static inline void VisitCompressedSource(Map* map, HeapObject* object);
   static inline void VisitJSFunction(Map* map, HeapObject* object);
   static inline void VisitJSRegExp(Map* map, HeapObject* object);
   static inline void VisitNativeContext(Map* map, HeapObject* object);

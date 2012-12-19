@@ -68,6 +68,11 @@ void StaticNewSpaceVisitor<StaticVisitor>::Initialize() {
                   SharedFunctionInfo::BodyDescriptor,
                   int>::Visit);
 
+  table_.Register(kVisitCompressedSource,
+                  &FixedBodyVisitor<StaticVisitor,
+                  CompressedSource::BodyDescriptor,
+                  int>::Visit);
+
   table_.Register(kVisitSeqOneByteString, &VisitSeqOneByteString);
 
   table_.Register(kVisitSeqTwoByteString, &VisitSeqTwoByteString);
@@ -136,6 +141,8 @@ void StaticMarkingVisitor<StaticVisitor>::Initialize() {
   table_.Register(kVisitCode, &VisitCode);
 
   table_.Register(kVisitSharedFunctionInfo, &VisitSharedFunctionInfo);
+
+  table_.Register(kVisitCompressedSource, &VisitCompressedSource);
 
   table_.Register(kVisitJSFunction, &VisitJSFunction);
 
@@ -322,6 +329,20 @@ void StaticMarkingVisitor<StaticVisitor>::VisitSharedFunctionInfo(
     }
   }
   VisitSharedFunctionInfoStrongCode(heap, object);
+}
+
+
+template<typename StaticVisitor>
+void StaticMarkingVisitor<StaticVisitor>::VisitCompressedSource(
+    Map* map, HeapObject* object) {
+  StaticVisitor::BeforeVisitingCompressedSource(object);
+  Object** start_slot =
+      HeapObject::RawField(object,
+                           CompressedSource::BodyDescriptor::kStartOffset);
+  Object** end_slot =
+      HeapObject::RawField(object,
+                           CompressedSource::BodyDescriptor::kEndOffset);
+  StaticVisitor::VisitPointers(map->GetHeap(), start_slot, end_slot);
 }
 
 

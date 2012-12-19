@@ -314,7 +314,10 @@ class SourceProcessor(SourceFileProcessor):
                        'libraries.cc',
                        'libraries-empty.cc',
                        'jsmin.py',
-                       'regexp-pcre.js']
+                       'regexp-pcre.js',
+                       'code-table.inc.c',
+                       'decoder.inc.c',
+                       'encoder.inc.c']
   IGNORE_TABS = IGNORE_COPYRIGHTS + ['unicode-test.js', 'html-comments.js']
 
   def ProcessContents(self, name, contents):

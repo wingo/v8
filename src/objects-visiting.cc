@@ -113,6 +113,9 @@ StaticVisitorBase::VisitorId StaticVisitorBase::GetVisitorId(
     case SHARED_FUNCTION_INFO_TYPE:
       return kVisitSharedFunctionInfo;
 
+    case COMPRESSED_SOURCE_TYPE:
+      return kVisitCompressedSource;
+
     case JS_PROXY_TYPE:
       return GetVisitorIdForSize(kVisitStruct,
                                  kVisitStructGeneric,

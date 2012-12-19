@@ -199,6 +199,10 @@ class Factory {
   Handle<AccessorInfo> NewAccessorInfo();
 
   Handle<Script> NewScript(Handle<String> source);
+  Handle<Script> NewScript(Handle<CompressedSource> compressed_source);
+
+  Handle<CompressedSource> NewCompressedSource(Handle<ByteArray> bytes,
+                                               Handle<String> source);
 
   // Foreign objects are pretenured when allocated by the bootstrapper.
   Handle<Foreign> NewForeign(Address addr,

@@ -12505,7 +12505,9 @@ RUNTIME_FUNCTION(MaybeObject*, Runtime_DebugSetScriptSource) {
 
   int compilation_state = Smi::cast(script->compilation_state())->value();
   RUNTIME_ASSERT(compilation_state == Script::COMPILATION_STATE_INITIAL);
-  script->set_source(*source);
+  Handle<CompressedSource> compressed_source =
+      CompressedSource::Compress(source);
+  script->set_compressed_source(*compressed_source);
 
   return isolate->heap()->undefined_value();
 }

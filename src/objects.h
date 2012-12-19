@@ -110,6 +110,7 @@
 //       - Oddball
 //       - Foreign
 //       - SharedFunctionInfo
+//       - CompressedSource
 //       - Struct
 //         - AccessorInfo
 //         - AccessorPair
@@ -300,6 +301,7 @@ const int kStubMinorKeyBits = kBitsPerInt - kSmiTagSize - kStubMajorKeyBits;
   V(FIXED_ARRAY_TYPE)                                                          \
   V(FIXED_DOUBLE_ARRAY_TYPE)                                                   \
   V(SHARED_FUNCTION_INFO_TYPE)                                                 \
+  V(COMPRESSED_SOURCE_TYPE)                                                    \
                                                                                \
   V(JS_MESSAGE_OBJECT_TYPE)                                                    \
                                                                                \
@@ -620,6 +622,7 @@ enum InstanceType {
 
   FIXED_ARRAY_TYPE,
   SHARED_FUNCTION_INFO_TYPE,
+  COMPRESSED_SOURCE_TYPE,
 
   JS_MESSAGE_OBJECT_TYPE,
 
@@ -870,6 +873,7 @@ class MaybeObject BASE_EMBEDDED {
   V(Code)                                      \
   V(Oddball)                                   \
   V(SharedFunctionInfo)                        \
+  V(CompressedSource)                          \
   V(JSValue)                                   \
   V(JSDate)                                    \
   V(JSMessageObject)                           \
@@ -5217,6 +5221,65 @@ class Struct: public HeapObject {
 };
 
 
+// A compressed representation of JavaScript source code.
+class CompressedSource: public Struct {
+ public:
+  DECL_ACCESSORS(bytes, ByteArray)
+
+  DECL_ACCESSORS(cached_string, Object)
+
+  inline int char_length();
+  inline void set_char_length(int char_length);
+
+  inline int hash();
+  inline void set_hash(int hash);
+
+#ifdef OBJECT_PRINT
+  inline void CompressedSourcePrint() {
+    CompressedSourcePrint(stdout);
+  }
+  inline void CompressedSourcePrint(FILE* out) {
+    CompressedSourcePrint(out, 0, char_length());
+  }
+  void CompressedSourcePrint(FILE* out, int start, int length);
+#endif
+
+  DECLARE_VERIFIER(CompressedSource)
+
+  static Handle<CompressedSource> Compress(Handle<String> src);
+
+  Handle<String> Decompress();
+  Handle<String> Decompress(int start, int length);
+  int Decompress(int start, int length, StringStream *dest);
+
+  bool SubStringEquals(int start, String *other);
+  uint32_t SubStringHash(int start, int length);
+
+  int GetLineNumberSlow(int pos);
+
+  void SetCachedString(String *string);
+
+  // Invoked before pointers in CompressedSource are being marked.
+  // Also clears the optimized code map.
+  inline void BeforeVisitingPointers();
+
+  static const int kBytesOffset = HeapObject::kHeaderSize;
+  static const int kCachedStringOffset = kBytesOffset + kPointerSize;
+  static const int kCharLengthOffset = kCachedStringOffset + kPointerSize;
+  static const int kHashOffset = kCharLengthOffset + kPointerSize;
+  static const int kSize = kHashOffset + kPointerSize;
+
+  static inline CompressedSource* cast(Object* that);
+
+  typedef FixedBodyDescriptor<kBytesOffset,
+                              kCachedStringOffset + kPointerSize,
+                              kSize> BodyDescriptor;
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(CompressedSource);
+};
+
+
 // Script describes a script which has been added to the VM.
 class Script: public Struct {
  public:
@@ -5239,8 +5302,8 @@ class Script: public Struct {
     COMPILATION_STATE_COMPILED = 1
   };
 
-  // [source]: the script source.
-  DECL_ACCESSORS(source, String)
+  // [compressed_source]: the compressed script source.
+  DECL_ACCESSORS(compressed_source, CompressedSource)
 
   // [name]: the script name.
   DECL_ACCESSORS(name, Object)
@@ -5286,10 +5349,6 @@ class Script: public Struct {
 
   static inline Script* cast(Object* obj);
 
-  // If script source is an external string, check that the underlying
-  // resource is accessible. Otherwise, always return true.
-  inline bool HasValidSource();
-
   // Return the size of the source string in characters, or 0 if there is no
   // valid source string.
   inline int SourceLength();
@@ -5304,8 +5363,8 @@ class Script: public Struct {
   DECLARE_PRINTER(Script)
   DECLARE_VERIFIER(Script)
 
-  static const int kSourceOffset = HeapObject::kHeaderSize;
-  static const int kNameOffset = kSourceOffset + kPointerSize;
+  static const int kCompressedSourceOffset = HeapObject::kHeaderSize;
+  static const int kNameOffset = kCompressedSourceOffset + kPointerSize;
   static const int kLineOffsetOffset = kNameOffset + kPointerSize;
   static const int kColumnOffsetOffset = kLineOffsetOffset + kPointerSize;
   static const int kDataOffset = kColumnOffsetOffset + kPointerSize;
@@ -5586,11 +5645,11 @@ class SharedFunctionInfo: public HeapObject {
   inline int function_token_position();
   inline void set_function_token_position(int function_token_position);
 
-  // Position of this function in the script source.
+  // Position of this function in the script source string.
   inline int start_position();
   inline void set_start_position(int start_position);
 
-  // End position of this function in the script source.
+  // End position of this function in the script source strng.
   inline int end_position();
   inline void set_end_position(int end_position);
 

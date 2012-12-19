@@ -2098,8 +2098,8 @@ void V8HeapExplorer::ExtractSharedFunctionInfoReferences(
 void V8HeapExplorer::ExtractScriptReferences(int entry, Script* script) {
   HeapObject* obj = script;
   SetInternalReference(obj, entry,
-                       "source", script->source(),
-                       Script::kSourceOffset);
+                       "compressed-source", script->compressed_source(),
+                       Script::kCompressedSourceOffset);
   SetInternalReference(obj, entry,
                        "name", script->name(),
                        Script::kNameOffset);

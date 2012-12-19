@@ -175,6 +175,9 @@ void HeapObject::HeapObjectPrint(FILE* out) {
     case SHARED_FUNCTION_INFO_TYPE:
       SharedFunctionInfo::cast(this)->SharedFunctionInfoPrint(out);
       break;
+    case COMPRESSED_SOURCE_TYPE:
+      CompressedSource::cast(this)->CompressedSourcePrint(out);
+      break;
     case JS_MESSAGE_OBJECT_TYPE:
       JSMessageObject::cast(this)->JSMessageObjectPrint(out);
       break;
@@ -518,6 +521,7 @@ static const char* TypeToString(InstanceType type) {
     case ODDBALL_TYPE: return "ODDBALL";
     case JS_GLOBAL_PROPERTY_CELL_TYPE: return "JS_GLOBAL_PROPERTY_CELL";
     case SHARED_FUNCTION_INFO_TYPE: return "SHARED_FUNCTION_INFO";
+    case COMPRESSED_SOURCE_TYPE: return "COMPRESSED_SOURCE";
     case JS_MODULE_TYPE: return "JS_MODULE";
     case JS_FUNCTION_TYPE: return "JS_FUNCTION";
     case CODE_TYPE: return "CODE";
@@ -803,14 +807,9 @@ void SharedFunctionInfo::SharedFunctionInfoPrint(FILE* out) {
   code()->ShortPrint(out);
   if (HasSourceCode()) {
     PrintF(out, "\n - source code = ");
-    String* source = Script::cast(script())->source();
-    int start = start_position();
-    int length = end_position() - start;
-    SmartArrayPointer<char> source_string =
-        source->ToCString(DISALLOW_NULLS,
-                          FAST_STRING_TRAVERSAL,
-                          start, length, NULL);
-    PrintF(out, "%s", *source_string);
+    CompressedSource* source = Script::cast(script())->compressed_source();
+    source->CompressedSourcePrint(out, start_position(),
+                                  end_position() - start_position());
   }
   // Script files are often large, hard to read.
   // PrintF(out, "\n - script =");
@@ -1005,7 +1004,7 @@ void TypeSwitchInfo::TypeSwitchInfoPrint(FILE* out) {
 void Script::ScriptPrint(FILE* out) {
   HeapObject::PrintHeader(out, "Script");
   PrintF(out, "\n - source: ");
-  source()->ShortPrint(out);
+  compressed_source()->ShortPrint(out);
   PrintF(out, "\n - name: ");
   name()->ShortPrint(out);
   PrintF(out, "\n - line_offset: ");

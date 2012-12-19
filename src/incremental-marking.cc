@@ -278,6 +278,8 @@ class IncrementalMarkingMarkingVisitor
 
   static void BeforeVisitingSharedFunctionInfo(HeapObject* object) {}
 
+  static void BeforeVisitingCompressedSource(HeapObject* object) {}
+
   INLINE(static void VisitPointer(Heap* heap, Object** p)) {
     Object* obj = *p;
     if (obj->NonFailureIsHeapObject()) {
