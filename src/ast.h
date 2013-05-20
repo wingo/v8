@@ -88,6 +88,7 @@ namespace internal {
   V(WhileStatement)                             \
   V(ForStatement)                               \
   V(ForInStatement)                             \
+  V(ForOfStatement)                             \
   V(TryCatchStatement)                          \
   V(TryFinallyStatement)                        \
   V(DebuggerStatement)
@@ -849,40 +850,75 @@ class ForStatement: public IterationStatement {
 };
 
 
-class ForInStatement: public IterationStatement {
+class ForEachStatement: public IterationStatement {
  public:
-  DECLARE_NODE_TYPE(ForInStatement)
+  enum VisitMode {
+    ENUMERATE,   // for (each in subject) body;
+    ITERATE      // for (each of subject) body;
+  };
 
-  void Initialize(Expression* each, Expression* enumerable, Statement* body) {
+  void Initialize(Expression* each,
+                  Expression* subject,
+                  Statement* body) {
     IterationStatement::Initialize(body);
     each_ = each;
-    enumerable_ = enumerable;
+    subject_ = subject;
   }
 
   Expression* each() const { return each_; }
-  Expression* enumerable() const { return enumerable_; }
+  Expression* subject() const { return subject_; }
 
   virtual BailoutId ContinueId() const { return EntryId(); }
   virtual BailoutId StackCheckId() const { return body_id_; }
   BailoutId BodyId() const { return body_id_; }
   BailoutId PrepareId() const { return prepare_id_; }
 
-  TypeFeedbackId ForInFeedbackId() const { return reuse(PrepareId()); }
-
  protected:
-  ForInStatement(Isolate* isolate, ZoneStringList* labels)
+  ForEachStatement(Isolate* isolate, ZoneStringList* labels)
       : IterationStatement(isolate, labels),
         each_(NULL),
-        enumerable_(NULL),
+        subject_(NULL),
         body_id_(GetNextId(isolate)),
         prepare_id_(GetNextId(isolate)) {
   }
 
  private:
   Expression* each_;
-  Expression* enumerable_;
+  Expression* subject_;
   const BailoutId body_id_;
   const BailoutId prepare_id_;
+};
+
+
+class ForInStatement: public ForEachStatement {
+ public:
+  DECLARE_NODE_TYPE(ForInStatement)
+
+  Expression* enumerable() const {
+    return subject();
+  }
+
+  TypeFeedbackId ForInFeedbackId() const { return reuse(PrepareId()); }
+
+ protected:
+  ForInStatement(Isolate* isolate, ZoneStringList* labels)
+      : ForEachStatement(isolate, labels) {
+  }
+};
+
+
+class ForOfStatement: public ForEachStatement {
+ public:
+  DECLARE_NODE_TYPE(ForOfStatement)
+
+  Expression* iterable() const {
+    return subject();
+  }
+
+ protected:
+  ForOfStatement(Isolate* isolate, ZoneStringList* labels)
+      : ForEachStatement(isolate, labels) {
+  }
 };
 
 
@@ -2786,9 +2822,25 @@ class AstNodeFactory BASE_EMBEDDED {
   STATEMENT_WITH_LABELS(DoWhileStatement)
   STATEMENT_WITH_LABELS(WhileStatement)
   STATEMENT_WITH_LABELS(ForStatement)
-  STATEMENT_WITH_LABELS(ForInStatement)
   STATEMENT_WITH_LABELS(SwitchStatement)
 #undef STATEMENT_WITH_LABELS
+
+  ForEachStatement* NewForEachStatement(ForEachStatement::VisitMode visit_mode,
+                                        ZoneStringList* labels) {
+    switch (visit_mode) {
+      case ForEachStatement::ENUMERATE: {
+        ForInStatement* stmt = new(zone_) ForInStatement(isolate_, labels);
+        VISIT_AND_RETURN(ForInStatement, stmt);
+      }
+      case ForEachStatement::ITERATE: {
+        ForOfStatement* stmt = new(zone_) ForOfStatement(isolate_, labels);
+        VISIT_AND_RETURN(ForOfStatement, stmt);
+      }
+      default:
+        UNREACHABLE();
+        return NULL;
+    }
+  }
 
   ModuleStatement* NewModuleStatement(VariableProxy* proxy, Block* body) {
     ModuleStatement* stmt = new(zone_) ModuleStatement(proxy, body);
