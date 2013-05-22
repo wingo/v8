@@ -868,25 +868,16 @@ class ForEachStatement: public IterationStatement {
   Expression* each() const { return each_; }
   Expression* subject() const { return subject_; }
 
-  virtual BailoutId ContinueId() const { return EntryId(); }
-  virtual BailoutId StackCheckId() const { return body_id_; }
-  BailoutId BodyId() const { return body_id_; }
-  BailoutId PrepareId() const { return prepare_id_; }
-
  protected:
   ForEachStatement(Isolate* isolate, ZoneStringList* labels)
       : IterationStatement(isolate, labels),
         each_(NULL),
-        subject_(NULL),
-        body_id_(GetNextId(isolate)),
-        prepare_id_(GetNextId(isolate)) {
+        subject_(NULL) {
   }
 
  private:
   Expression* each_;
   Expression* subject_;
-  const BailoutId body_id_;
-  const BailoutId prepare_id_;
 };
 
 
@@ -899,11 +890,20 @@ class ForInStatement: public ForEachStatement {
   }
 
   TypeFeedbackId ForInFeedbackId() const { return reuse(PrepareId()); }
+  BailoutId BodyId() const { return body_id_; }
+  BailoutId PrepareId() const { return prepare_id_; }
+  virtual BailoutId ContinueId() const { return EntryId(); }
+  virtual BailoutId StackCheckId() const { return body_id_; }
 
  protected:
   ForInStatement(Isolate* isolate, ZoneStringList* labels)
-      : ForEachStatement(isolate, labels) {
+      : ForEachStatement(isolate, labels),
+        body_id_(GetNextId(isolate)),
+        prepare_id_(GetNextId(isolate)) {
   }
+
+  const BailoutId body_id_;
+  const BailoutId prepare_id_;
 };
 
 
@@ -911,14 +911,64 @@ class ForOfStatement: public ForEachStatement {
  public:
   DECLARE_NODE_TYPE(ForOfStatement)
 
+  void Initialize(Expression* each,
+                  Expression* subject,
+                  Statement* body,
+                  Expression* assign_iterator,
+                  Expression* next_result,
+                  Expression* result_done,
+                  Expression* assign_each) {
+    ForEachStatement::Initialize(each, subject, body);
+    assign_iterator_ = assign_iterator;
+    next_result_ = next_result;
+    result_done_ = result_done;
+    assign_each_ = assign_each;
+  }
+
   Expression* iterable() const {
     return subject();
   }
 
+  // var iterator = iterable;
+  Expression* assign_iterator() const {
+    return assign_iterator_;
+  }
+
+  // var result = iterator.next();
+  Expression* next_result() const {
+    return next_result_;
+  }
+
+  // result.done
+  Expression* result_done() const {
+    return result_done_;
+  }
+
+  // each = result.value
+  Expression* assign_each() const {
+    return assign_each_;
+  }
+
+  virtual BailoutId ContinueId() const { return EntryId(); }
+  virtual BailoutId StackCheckId() const { return BackEdgeId(); }
+
+  BailoutId BackEdgeId() const { return back_edge_id_; }
+
  protected:
   ForOfStatement(Isolate* isolate, ZoneStringList* labels)
-      : ForEachStatement(isolate, labels) {
+      : ForEachStatement(isolate, labels),
+        assign_iterator_(NULL),
+        next_result_(NULL),
+        result_done_(NULL),
+        assign_each_(NULL),
+        back_edge_id_(GetNextId(isolate)) {
   }
+
+  Expression* assign_iterator_;
+  Expression* next_result_;
+  Expression* result_done_;
+  Expression* assign_each_;
+  const BailoutId back_edge_id_;
 };
 
 

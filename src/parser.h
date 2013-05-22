@@ -659,6 +659,10 @@ class Parser BASE_EMBEDDED {
   SwitchStatement* ParseSwitchStatement(ZoneStringList* labels, bool* ok);
   DoWhileStatement* ParseDoWhileStatement(ZoneStringList* labels, bool* ok);
   WhileStatement* ParseWhileStatement(ZoneStringList* labels, bool* ok);
+  void InitializeForEachStatement(ForEachStatement* stmt,
+                                  Expression* each,
+                                  Expression* subject,
+                                  Statement* body);
   Statement* ParseForStatement(ZoneStringList* labels, bool* ok);
   Statement* ParseThrowStatement(bool* ok);
   Expression* MakeCatchContext(Handle<String> id, VariableProxy* value);
