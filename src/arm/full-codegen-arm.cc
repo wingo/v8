@@ -1274,17 +1274,6 @@ void FullCodeGenerator::VisitForOfStatement(ForOfStatement* stmt) {
   __ CompareRoot(r0, Heap::kNullValueRootIndex);
   __ b(eq, loop_statement.break_label());
 
-  // Convert the iterator to a JS object.
-  Label convert, done_convert;
-  __ JumpIfSmi(r0, &convert);
-  __ CompareObjectType(r0, r1, r1, FIRST_SPEC_OBJECT_TYPE);
-  __ b(ge, &done_convert);
-  __ bind(&convert);
-  __ push(r0);
-  __ InvokeBuiltin(Builtins::TO_OBJECT, CALL_FUNCTION);
-  __ bind(&done_convert);
-  __ push(r0);
-
   // Loop entry.
   __ bind(loop_statement.continue_label());
 
@@ -1299,14 +1288,15 @@ void FullCodeGenerator::VisitForOfStatement(ForOfStatement* stmt) {
                   &result_not_done);
   __ bind(&result_not_done);
 
+  PrepareForBailoutForId(stmt->BodyId(), NO_REGISTERS);
+
   // each = result.value
   VisitForEffect(stmt->assign_each());
 
   // Generate code for the body of the loop.
   Visit(stmt->body());
 
-  // Check stack before looping.
-  PrepareForBailoutForId(stmt->BackEdgeId(), NO_REGISTERS);
+  // Loop.
   EmitBackEdgeBookkeeping(stmt, loop_statement.continue_label());
   __ jmp(loop_statement.continue_label());
 

@@ -950,9 +950,9 @@ class ForOfStatement: public ForEachStatement {
   }
 
   virtual BailoutId ContinueId() const { return EntryId(); }
-  virtual BailoutId StackCheckId() const { return BackEdgeId(); }
+  virtual BailoutId StackCheckId() const { return BodyId(); }
 
-  BailoutId BackEdgeId() const { return back_edge_id_; }
+  BailoutId BodyId() const { return body_id_; }
 
  protected:
   ForOfStatement(Isolate* isolate, ZoneStringList* labels)
@@ -961,14 +961,14 @@ class ForOfStatement: public ForEachStatement {
         next_result_(NULL),
         result_done_(NULL),
         assign_each_(NULL),
-        back_edge_id_(GetNextId(isolate)) {
+        body_id_(GetNextId(isolate)) {
   }
 
   Expression* assign_iterator_;
   Expression* next_result_;
   Expression* result_done_;
   Expression* assign_each_;
-  const BailoutId back_edge_id_;
+  const BailoutId body_id_;
 };
 
 

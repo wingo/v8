@@ -2868,7 +2868,7 @@ void Parser::InitializeForEachStatement(ForEachStatement* stmt,
       ZoneList<Expression*>* next_arguments =
           new(zone()) ZoneList<Expression*>(0, zone());
       Expression* next_call = factory()->NewCall(
-          next_property, next_arguments, RelocInfo::kNoPosition);
+          next_property, next_arguments, top_scope_->start_position());
       Expression* result_proxy = factory()->NewVariableProxy(result);
       next_result = factory()->NewAssignment(
           Token::ASSIGN, result_proxy, next_call, RelocInfo::kNoPosition);
@@ -2880,7 +2880,7 @@ void Parser::InitializeForEachStatement(ForEachStatement* stmt,
           factory()->NewLiteral(heap_factory->done_string());
       Expression* result_proxy = factory()->NewVariableProxy(result);
       result_done = factory()->NewProperty(
-          result_proxy, done_literal, RelocInfo::kNoPosition);
+          result_proxy, done_literal, top_scope_->start_position());
     }
 
     // each = result.value
@@ -2889,7 +2889,7 @@ void Parser::InitializeForEachStatement(ForEachStatement* stmt,
           factory()->NewLiteral(heap_factory->value_string());
       Expression* result_proxy = factory()->NewVariableProxy(result);
       Expression* result_value = factory()->NewProperty(
-          result_proxy, value_literal, RelocInfo::kNoPosition);
+          result_proxy, value_literal, top_scope_->start_position());
       assign_each = factory()->NewAssignment(
           Token::ASSIGN, each, result_value, RelocInfo::kNoPosition);
     }
