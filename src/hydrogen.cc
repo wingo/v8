@@ -6295,6 +6295,63 @@ void HOptimizedGraphBuilder::VisitForInStatement(ForInStatement* stmt) {
 }
 
 
+void HOptimizedGraphBuilder::VisitForOfStatement(ForOfStatement* stmt) {
+  ASSERT(!HasStackOverflow());
+  ASSERT(current_block() != NULL);
+  ASSERT(current_block()->HasPredecessor());
+
+  if (!FLAG_optimize_for_of) {
+    return Bailout("ForOfStatement optimization is disabled");
+  }
+
+  CHECK_ALIVE(VisitForValue(stmt->assign_iterator()));
+  HValue *iterator = Pop();
+
+  IfBuilder nil_check(this);
+  nil_check.If<HCompareObjectEqAndBranch>(iterator,
+                                          graph()->GetConstantNull());
+  nil_check.OrIf<HCompareObjectEqAndBranch>(iterator,
+                                            graph()->GetConstantUndefined());
+  nil_check.Then();
+  nil_check.Else();
+
+  bool osr_entry = PreProcessOsrEntry(stmt);
+  HBasicBlock* loop_entry = CreateLoopHeaderBlock();
+  current_block()->Goto(loop_entry);
+  set_current_block(loop_entry);
+  if (osr_entry) graph()->set_osr_loop_entry(loop_entry);
+
+  CHECK_BAILOUT(VisitForEffect(stmt->next_result()));
+
+  BreakAndContinueInfo break_info(stmt);
+  HBasicBlock* loop_body = graph()->CreateBasicBlock();
+  HBasicBlock* loop_successor = graph()->CreateBasicBlock();
+  break_info.set_continue_block(loop_entry);
+
+  CHECK_BAILOUT(VisitForControl(stmt->result_done(),
+                                loop_successor, loop_body));
+
+  if (loop_body->HasPredecessor()) {
+    loop_body->SetJoinId(stmt->BodyId());
+    set_current_block(loop_body);
+    CHECK_BAILOUT(VisitForEffect(stmt->assign_each()));
+    CHECK_BAILOUT(VisitLoopBody(stmt, loop_entry, &break_info));
+  }
+  if (loop_successor->HasPredecessor()) {
+    loop_successor->SetJoinId(stmt->ExitId());
+  }
+
+  HBasicBlock* loop_exit = CreateLoop(stmt,
+                                      loop_entry,
+                                      current_block(),
+                                      loop_successor,
+                                      break_info.break_block());
+
+  set_current_block(loop_exit);
+  nil_check.End();
+}
+
+
 void HOptimizedGraphBuilder::VisitTryCatchStatement(TryCatchStatement* stmt) {
   ASSERT(!HasStackOverflow());
   ASSERT(current_block() != NULL);

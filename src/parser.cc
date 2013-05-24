@@ -551,6 +551,7 @@ Parser::Parser(CompilationInfo* info)
       allow_natives_syntax_(false),
       allow_lazy_(false),
       allow_generators_(false),
+      allow_for_of_(false),
       stack_overflow_(false),
       parenthesized_function_(false),
       zone_(info->zone()),
@@ -562,6 +563,7 @@ Parser::Parser(CompilationInfo* info)
   set_allow_natives_syntax(FLAG_allow_natives_syntax || info->is_native());
   set_allow_lazy(false);  // Must be explicitly enabled.
   set_allow_generators(FLAG_harmony_generators);
+  set_allow_for_of(FLAG_harmony_iteration);
 }
 
 
@@ -1222,7 +1224,7 @@ Module* Parser::ParseModule(bool* ok) {
     }
 
     default: {
-      ExpectContextualKeyword("at", CHECK_OK);
+      ExpectContextualKeyword(CStrVector("at"), CHECK_OK);
       Module* result = ParseModuleUrl(CHECK_OK);
       ExpectSemicolon(CHECK_OK);
       return result;
@@ -1394,7 +1396,7 @@ Block* Parser::ParseImportDeclaration(bool* ok) {
     names.Add(name, zone());
   }
 
-  ExpectContextualKeyword("from", CHECK_OK);
+  ExpectContextualKeyword(CStrVector("from"), CHECK_OK);
   Module* module = ParseModuleSpecifier(CHECK_OK);
   ExpectSemicolon(CHECK_OK);
 
@@ -2815,6 +2817,91 @@ WhileStatement* Parser::ParseWhileStatement(ZoneStringList* labels, bool* ok) {
 }
 
 
+bool Parser::CheckInOrOf(ForEachStatement::VisitMode* visit_mode) {
+  if (Check(Token::IN)) {
+    *visit_mode = ForEachStatement::ENUMERATE;
+    return true;
+  } else if (FLAG_harmony_iteration &&
+             CheckContextualKeyword(CStrVector("of"))) {
+    *visit_mode = ForEachStatement::ITERATE;
+    return true;
+  }
+  return false;
+}
+
+
+void Parser::InitializeForEachStatement(ForEachStatement* stmt,
+                                        Expression* each,
+                                        Expression* subject,
+                                        Statement* body) {
+  ForOfStatement* for_of = stmt->AsForOfStatement();
+
+  if (for_of != NULL) {
+    Factory* heap_factory = isolate()->factory();
+    Handle<String> iterator_str = heap_factory->InternalizeOneByteString(
+        STATIC_ASCII_VECTOR(".iterator"));
+    Handle<String> result_str = heap_factory->InternalizeOneByteString(
+        STATIC_ASCII_VECTOR(".result"));
+    Variable* iterator =
+        top_scope_->DeclarationScope()->NewTemporary(iterator_str);
+    Variable* result = top_scope_->DeclarationScope()->NewTemporary(result_str);
+
+    Expression* assign_iterator;
+    Expression* next_result;
+    Expression* result_done;
+    Expression* assign_each;
+
+    // var iterator = iterable;
+    {
+      Expression* iterator_proxy = factory()->NewVariableProxy(iterator);
+      assign_iterator = factory()->NewAssignment(
+          Token::ASSIGN, iterator_proxy, subject, RelocInfo::kNoPosition);
+    }
+
+    // var result = iterator.next();
+    {
+      Expression* iterator_proxy = factory()->NewVariableProxy(iterator);
+      Expression* next_literal =
+          factory()->NewLiteral(heap_factory->next_string());
+      Expression* next_property = factory()->NewProperty(
+          iterator_proxy, next_literal, RelocInfo::kNoPosition);
+      ZoneList<Expression*>* next_arguments =
+          new(zone()) ZoneList<Expression*>(0, zone());
+      Expression* next_call = factory()->NewCall(
+          next_property, next_arguments, top_scope_->start_position());
+      Expression* result_proxy = factory()->NewVariableProxy(result);
+      next_result = factory()->NewAssignment(
+          Token::ASSIGN, result_proxy, next_call, RelocInfo::kNoPosition);
+    }
+
+    // result.done
+    {
+      Expression* done_literal =
+          factory()->NewLiteral(heap_factory->done_string());
+      Expression* result_proxy = factory()->NewVariableProxy(result);
+      result_done = factory()->NewProperty(
+          result_proxy, done_literal, top_scope_->start_position());
+    }
+
+    // each = result.value
+    {
+      Expression* value_literal =
+          factory()->NewLiteral(heap_factory->value_string());
+      Expression* result_proxy = factory()->NewVariableProxy(result);
+      Expression* result_value = factory()->NewProperty(
+          result_proxy, value_literal, top_scope_->start_position());
+      assign_each = factory()->NewAssignment(
+          Token::ASSIGN, each, result_value, RelocInfo::kNoPosition);
+    }
+
+    for_of->Initialize(each, subject, body,
+                       assign_iterator, next_result, result_done, assign_each);
+  } else {
+    stmt->Initialize(each, subject, body);
+  }
+}
+
+
 Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
   // ForStatement ::
   //   'for' '(' Expression? ';' Expression? ';' Expression? ')' Statement
@@ -2835,21 +2922,21 @@ Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
       Handle<String> name;
       Block* variable_statement =
           ParseVariableDeclarations(kForStatement, NULL, NULL, &name, CHECK_OK);
+      ForEachStatement::VisitMode mode;
 
-      if (peek() == Token::IN && !name.is_null()) {
+      if (!name.is_null() && CheckInOrOf(&mode)) {
         Interface* interface =
             is_const ? Interface::NewConst() : Interface::NewValue();
-        ForInStatement* loop = factory()->NewForInStatement(labels);
+        ForEachStatement* loop = factory()->NewForEachStatement(mode, labels);
         Target target(&this->target_stack_, loop);
 
-        Expect(Token::IN, CHECK_OK);
         Expression* enumerable = ParseExpression(true, CHECK_OK);
         Expect(Token::RPAREN, CHECK_OK);
 
         VariableProxy* each =
             top_scope_->NewUnresolved(factory(), name, interface);
         Statement* body = ParseStatement(NULL, CHECK_OK);
-        loop->Initialize(each, enumerable, body);
+        InitializeForEachStatement(loop, each, enumerable, body);
         Block* result = factory()->NewBlock(NULL, 2, false);
         result->AddStatement(variable_statement, zone());
         result->AddStatement(loop, zone());
@@ -2869,7 +2956,9 @@ Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
          ParseVariableDeclarations(kForStatement, &decl_props, NULL, &name,
                                    CHECK_OK);
       bool accept_IN = !name.is_null() && decl_props != kHasInitializers;
-      if (peek() == Token::IN && accept_IN) {
+      ForEachStatement::VisitMode mode;
+
+      if (accept_IN && CheckInOrOf(&mode)) {
         // Rewrite a for-in statement of the form
         //
         //   for (let x in e) b
@@ -2891,11 +2980,10 @@ Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
         Handle<String> tempname = heap_factory->InternalizeString(tempstr);
         Variable* temp = top_scope_->DeclarationScope()->NewTemporary(tempname);
         VariableProxy* temp_proxy = factory()->NewVariableProxy(temp);
-        ForInStatement* loop = factory()->NewForInStatement(labels);
+        ForEachStatement* loop = factory()->NewForEachStatement(mode, labels);
         Target target(&this->target_stack_, loop);
 
         // The expression does not see the loop variable.
-        Expect(Token::IN, CHECK_OK);
         top_scope_ = saved_scope;
         Expression* enumerable = ParseExpression(true, CHECK_OK);
         top_scope_ = for_scope;
@@ -2912,7 +3000,7 @@ Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
         body_block->AddStatement(variable_statement, zone());
         body_block->AddStatement(assignment_statement, zone());
         body_block->AddStatement(body, zone());
-        loop->Initialize(temp_proxy, enumerable, body_block);
+        InitializeForEachStatement(loop, temp_proxy, enumerable, body_block);
         top_scope_ = saved_scope;
         for_scope->set_end_position(scanner().location().end_pos);
         for_scope = for_scope->FinalizeBlockScope();
@@ -2925,7 +3013,9 @@ Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
       }
     } else {
       Expression* expression = ParseExpression(false, CHECK_OK);
-      if (peek() == Token::IN) {
+      ForEachStatement::VisitMode mode;
+
+      if (CheckInOrOf(&mode)) {
         // Signal a reference error if the expression is an invalid
         // left-hand side expression.  We could report this as a syntax
         // error here but for compatibility with JSC we choose to report
@@ -2935,15 +3025,14 @@ Statement* Parser::ParseForStatement(ZoneStringList* labels, bool* ok) {
               isolate()->factory()->invalid_lhs_in_for_in_string();
           expression = NewThrowReferenceError(type);
         }
-        ForInStatement* loop = factory()->NewForInStatement(labels);
+        ForEachStatement* loop = factory()->NewForEachStatement(mode, labels);
         Target target(&this->target_stack_, loop);
 
-        Expect(Token::IN, CHECK_OK);
         Expression* enumerable = ParseExpression(true, CHECK_OK);
         Expect(Token::RPAREN, CHECK_OK);
 
         Statement* body = ParseStatement(NULL, CHECK_OK);
-        if (loop) loop->Initialize(expression, enumerable, body);
+        InitializeForEachStatement(loop, expression, enumerable, body);
         top_scope_ = saved_scope;
         for_scope->set_end_position(scanner().location().end_pos);
         for_scope = for_scope->FinalizeBlockScope();
@@ -4706,6 +4795,7 @@ preparser::PreParser::PreParseResult Parser::LazyParseFunctionLiteral(
     reusable_preparser_->set_allow_natives_syntax(allow_natives_syntax());
     reusable_preparser_->set_allow_lazy(true);
     reusable_preparser_->set_allow_generators(allow_generators());
+    reusable_preparser_->set_allow_for_of(allow_for_of());
   }
   preparser::PreParser::PreParseResult result =
       reusable_preparser_->PreParseLazyFunction(top_scope_->language_mode(),
@@ -4803,6 +4893,16 @@ bool Parser::Check(Token::Value token) {
 }
 
 
+bool Parser::CheckContextualKeyword(Vector<const char> keyword) {
+  if (peek() == Token::IDENTIFIER &&
+      scanner().is_next_contextual_keyword(keyword)) {
+    Consume(Token::IDENTIFIER);
+    return true;
+  }
+  return false;
+}
+
+
 void Parser::ExpectSemicolon(bool* ok) {
   // Check for automatic semicolon insertion according to
   // the rules given in ECMA-262, section 7.9, page 21.
@@ -4820,12 +4920,10 @@ void Parser::ExpectSemicolon(bool* ok) {
 }
 
 
-void Parser::ExpectContextualKeyword(const char* keyword, bool* ok) {
+void Parser::ExpectContextualKeyword(Vector<const char> keyword, bool* ok) {
   Expect(Token::IDENTIFIER, ok);
   if (!*ok) return;
-  Handle<String> symbol = GetSymbol();
-  if (!*ok) return;
-  if (!symbol->IsUtf8EqualTo(CStrVector(keyword))) {
+  if (!scanner().is_literal_contextual_keyword(keyword)) {
     *ok = false;
     ReportUnexpectedToken(scanner().current_token());
   }
@@ -5961,6 +6059,7 @@ ScriptDataImpl* PreParserApi::PreParse(Utf16CharacterStream* source) {
   preparser::PreParser preparser(&scanner, &recorder, stack_limit);
   preparser.set_allow_lazy(true);
   preparser.set_allow_generators(FLAG_harmony_generators);
+  preparser.set_allow_for_of(FLAG_harmony_iteration);
   preparser.set_allow_harmony_scoping(FLAG_harmony_scoping);
   scanner.Initialize(source);
   preparser::PreParser::PreParseResult result = preparser.PreParseProgram();

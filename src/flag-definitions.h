@@ -170,6 +170,7 @@ DEFINE_bool(harmony_array_buffer, false,
             "enable harmony array buffer")
 DEFINE_implication(harmony_typed_arrays, harmony_array_buffer)
 DEFINE_bool(harmony_generators, false, "enable harmony generators")
+DEFINE_bool(harmony_iteration, false, "enable harmony iteration (for-of)")
 DEFINE_bool(harmony, false, "enable all harmony features (except typeof)")
 DEFINE_implication(harmony, harmony_scoping)
 DEFINE_implication(harmony, harmony_modules)
@@ -178,6 +179,7 @@ DEFINE_implication(harmony, harmony_proxies)
 DEFINE_implication(harmony, harmony_collections)
 DEFINE_implication(harmony, harmony_observation)
 DEFINE_implication(harmony, harmony_generators)
+DEFINE_implication(harmony, harmony_iteration)
 DEFINE_implication(harmony_modules, harmony_scoping)
 DEFINE_implication(harmony_observation, harmony_collections)
 // TODO[dslomov] add harmony => harmony_typed_arrays
@@ -277,6 +279,8 @@ DEFINE_int(loop_weight, 1, "loop weight for representation inference")
 
 DEFINE_bool(optimize_for_in, true,
             "optimize functions containing for-in loops")
+DEFINE_bool(optimize_for_of, true,
+            "optimize functions containing for-of loops")
 DEFINE_bool(opt_safe_uint32_operations, true,
             "allow uint32 values on optimize frames if they are used only in "
             "safe operations")
