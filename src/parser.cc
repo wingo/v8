@@ -1134,7 +1134,7 @@ FunctionLiteral* Parser::ParseLazy(Isolate* isolate, ParseInfo* info,
     if (shared_info->is_arrow()) {
       Scope* scope = NewScope(scope_, ARROW_SCOPE);
       scope->set_start_position(shared_info->start_position());
-      ExpressionClassifier formals_classifier;
+      ExpressionClassifier formals_classifier = push_classifier();
       bool has_rest = false;
       if (Check(Token::LPAREN)) {
         // '(' StrictFormalParameters ')'
@@ -1616,7 +1616,7 @@ Statement* Parser::ParseExportDefault(bool* ok) {
 
     default: {
       int pos = peek_position();
-      ExpressionClassifier classifier;
+      ExpressionClassifier classifier = push_classifier();
       Expression* expr = ParseAssignmentExpression(true, &classifier, CHECK_OK);
       ValidateExpression(&classifier, CHECK_OK);
 
@@ -2400,7 +2400,7 @@ void Parser::ParseVariableDeclarations(VariableDeclarationContext var_context,
 
     Expression* pattern;
     {
-      ExpressionClassifier pattern_classifier;
+      ExpressionClassifier pattern_classifier = push_classifier();
       Token::Value next = peek();
       pattern = ParsePrimaryExpression(&pattern_classifier, ok);
       if (!*ok) return;
@@ -2435,7 +2435,7 @@ void Parser::ParseVariableDeclarations(VariableDeclarationContext var_context,
                                     !is_for_iteration_variable)) {
       Expect(Token::ASSIGN, ok);
       if (!*ok) return;
-      ExpressionClassifier classifier;
+      ExpressionClassifier classifier = push_classifier();
       value = ParseAssignmentExpression(var_context != kForStatement,
                                         &classifier, ok);
       if (!*ok) return;
@@ -2519,7 +2519,7 @@ Statement* Parser::ParseExpressionOrLabelledStatement(
           i::IsConstructor(function_state_->kind())) {
         bool is_this = peek() == Token::THIS;
         Expression* expr;
-        ExpressionClassifier classifier;
+        ExpressionClassifier classifier = push_classifier();
         if (is_this) {
           expr = ParseStrongInitializationExpression(&classifier, CHECK_OK);
         } else {
@@ -3857,7 +3857,7 @@ FunctionLiteral* Parser::ParseFunctionLiteral(
   int materialized_literal_count = -1;
   int expected_property_count = -1;
   int handler_count = 0;
-  ExpressionClassifier formals_classifier;
+  ExpressionClassifier formals_classifier = push_classifier();
   FunctionLiteral::EagerCompileHint eager_compile_hint =
       parenthesized_function_ ? FunctionLiteral::kShouldEagerCompile
                               : FunctionLiteral::kShouldLazyCompile;
@@ -4328,7 +4328,7 @@ ClassLiteral* Parser::ParseClassLiteral(const AstRawString* name,
   Expression* extends = NULL;
   if (Check(Token::EXTENDS)) {
     block_scope->set_start_position(scanner()->location().end_pos);
-    ExpressionClassifier classifier;
+    ExpressionClassifier classifier = push_classifier();
     extends = ParseLeftHandSideExpression(&classifier, CHECK_OK);
     ValidateExpression(&classifier, CHECK_OK);
   } else {
@@ -4351,7 +4351,7 @@ ClassLiteral* Parser::ParseClassLiteral(const AstRawString* name,
     const bool is_static = false;
     bool is_computed_name = false;  // Classes do not care about computed
                                     // property names here.
-    ExpressionClassifier classifier;
+    ExpressionClassifier classifier = push_classifier();
     ObjectLiteral::Property* property = ParsePropertyDefinition(
         &checker, in_class, has_extends, is_static, &is_computed_name,
         &has_seen_constructor, &classifier, CHECK_OK);
@@ -4404,7 +4404,7 @@ Expression* Parser::ParseV8Intrinsic(bool* ok) {
   const AstRawString* name = ParseIdentifier(kAllowRestrictedIdentifiers,
                                              CHECK_OK);
   Scanner::Location spread_pos;
-  ExpressionClassifier classifier;
+  ExpressionClassifier classifier = push_classifier();
   ZoneList<Expression*>* args =
       ParseArguments(&spread_pos, &classifier, CHECK_OK);
   ValidateExpression(&classifier, CHECK_OK);

@@ -542,7 +542,7 @@ PreParser::Statement PreParser::ParseVariableDeclarations(
     // Parse binding pattern.
     if (nvars > 0) Consume(Token::COMMA);
     {
-      ExpressionClassifier pattern_classifier;
+      ExpressionClassifier pattern_classifier = push_classifier();
       Token::Value next = peek();
       PreParserExpression pattern =
           ParsePrimaryExpression(&pattern_classifier, CHECK_OK);
@@ -561,7 +561,7 @@ PreParser::Statement PreParser::ParseVariableDeclarations(
         // require initializers for multiple consts.
         (is_strict_const && peek() == Token::COMMA)) {
       Expect(Token::ASSIGN, CHECK_OK);
-      ExpressionClassifier classifier;
+      ExpressionClassifier classifier = push_classifier();
       ParseAssignmentExpression(var_context != kForStatement, &classifier,
                                 CHECK_OK);
       ValidateExpression(&classifier, CHECK_OK);
@@ -603,7 +603,7 @@ PreParser::Statement PreParser::ParseExpressionOrLabelledStatement(bool* ok) {
           i::IsConstructor(function_state_->kind())) {
         bool is_this = peek() == Token::THIS;
         Expression expr = Expression::Default();
-        ExpressionClassifier classifier;
+        ExpressionClassifier classifier = push_classifier();
         if (is_this) {
           expr = ParseStrongInitializationExpression(&classifier, CHECK_OK);
         } else {
@@ -639,7 +639,7 @@ PreParser::Statement PreParser::ParseExpressionOrLabelledStatement(bool* ok) {
   }
 
   bool starts_with_identifier = peek_any_identifier();
-  ExpressionClassifier classifier;
+  ExpressionClassifier classifier = push_classifier();
   Expression expr = ParseExpression(true, &classifier, CHECK_OK);
   ValidateExpression(&classifier, CHECK_OK);
 
@@ -1032,7 +1032,7 @@ PreParser::Expression PreParser::ParseFunctionLiteral(
   PreParserFactory factory(NULL);
   FunctionState function_state(&function_state_, &scope_, function_scope, kind,
                                &factory);
-  ExpressionClassifier formals_classifier;
+  ExpressionClassifier formals_classifier = push_classifier();
 
   bool has_rest = false;
   Expect(Token::LPAREN, CHECK_OK);
@@ -1141,7 +1141,7 @@ PreParserExpression PreParser::ParseClassLiteral(
 
   bool has_extends = Check(Token::EXTENDS);
   if (has_extends) {
-    ExpressionClassifier classifier;
+    ExpressionClassifier classifier = push_classifier();
     ParseLeftHandSideExpression(&classifier, CHECK_OK);
     ValidateExpression(&classifier, CHECK_OK);
   }
@@ -1156,7 +1156,7 @@ PreParserExpression PreParser::ParseClassLiteral(
     const bool is_static = false;
     bool is_computed_name = false;  // Classes do not care about computed
                                     // property names here.
-    ExpressionClassifier classifier;
+    ExpressionClassifier classifier = push_classifier();
     ParsePropertyDefinition(&checker, in_class, has_extends, is_static,
                             &is_computed_name, &has_seen_constructor,
                             &classifier, CHECK_OK);
@@ -1180,7 +1180,7 @@ PreParser::Expression PreParser::ParseV8Intrinsic(bool* ok) {
   // Allow "eval" or "arguments" for backward compatibility.
   ParseIdentifier(kAllowRestrictedIdentifiers, CHECK_OK);
   Scanner::Location spread_pos;
-  ExpressionClassifier classifier;
+  ExpressionClassifier classifier = push_classifier();
   ParseArguments(&spread_pos, &classifier, ok);
   ValidateExpression(&classifier, CHECK_OK);
 
